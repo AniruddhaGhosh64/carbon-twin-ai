@@ -178,6 +178,9 @@ project-root/
 
 ## 🔌 API Endpoints
 
+### 🏥 Health Check (`/health`)
+* `GET /health`: Returns service health status and name for Cloud Run health probing.
+
 ### 🔐 Authentication (`/api/v1/auth`)
 * `POST /register`: Registers a new user.
 * `POST /login`: authenticates local credentials.
@@ -281,7 +284,10 @@ GEMINI_API_KEY_1=optional_backup_key_1
 GEMINI_API_KEY_2=optional_backup_key_2
 FIREBASE_PROJECT_ID=your_firebase_project_id
 FIREBASE_CREDENTIALS_PATH=path/to/firebase-credentials.json
-JWT_SECRET=your_jwt_signing_secret
+
+# Security Configuration
+JWT_SECRET=your_jwt_signing_secret (Mandatory - API will fail startup if missing)
+FRONTEND_URL=http://localhost:3000 (Defaults to localhost, specify production URL for CORS restriction)
 ```
 
 Create a `.env.local` file in the `frontend/` directory:
@@ -289,7 +295,7 @@ Create a `.env.local` file in the `frontend/` directory:
 ```env
 NEXTAUTH_SECRET=your_nextauth_signing_secret
 NEXTAUTH_URL=http://localhost:3000
-NEXT_PUBLIC_API_URL=http://127.0.0.1:8000
+NEXT_PUBLIC_API_URL=http://127.0.0.1:8000 (Centralized API base configuration)
 ```
 
 ---

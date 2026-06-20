@@ -1,6 +1,7 @@
 import NextAuth from "next-auth";
 import CredentialsProvider from "next-auth/providers/credentials";
 import GoogleProvider from "next-auth/providers/google";
+import { getApiUrl } from "@/lib/api";
 
 export const { handlers, signIn, signOut, auth } = NextAuth({
   providers: [
@@ -16,7 +17,7 @@ export const { handlers, signIn, signOut, auth } = NextAuth({
         }
 
         try {
-          const res = await fetch("http://127.0.0.1:8000/api/v1/auth/login", {
+          const res = await fetch(getApiUrl("/api/v1/auth/login"), {
             method: "POST",
             body: JSON.stringify({
               email: credentials.email,
@@ -61,7 +62,7 @@ export const { handlers, signIn, signOut, auth } = NextAuth({
     async signIn({ user, account }) {
       if (account?.provider === "google") {
         try {
-          const res = await fetch("http://127.0.0.1:8000/api/v1/auth/google-login", {
+          const res = await fetch(getApiUrl("/api/v1/auth/google-login"), {
             method: "POST",
             body: JSON.stringify({
               email: user.email,

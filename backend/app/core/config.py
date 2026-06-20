@@ -14,7 +14,8 @@ class Settings(BaseSettings):
     GEMINI_API_KEY_3: str = ""
     FIREBASE_PROJECT_ID: str = "carbontwin-ai-a7244"
     FIREBASE_CREDENTIALS_PATH: Optional[str] = None
-    JWT_SECRET: str = "default_jwt_secret_key_for_development_purposes_only"
+    JWT_SECRET: str
+    FRONTEND_URL: str = "http://localhost:3000"
 
     @property
     def gemini_api_keys(self) -> list[str]:

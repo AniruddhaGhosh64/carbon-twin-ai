@@ -2,6 +2,7 @@
 
 import React, { useState, useRef, useEffect } from "react";
 import { useSession } from "next-auth/react";
+import { getApiUrl } from "@/lib/api";
 import { MessageSquare, Send, X, Bot, User, Sparkles, Loader2, Trash2 } from "lucide-react";
 
 interface ChatMessage {
@@ -53,7 +54,7 @@ export default function CarbonCoachAssistant() {
         content: msg.content
       }));
 
-      const response = await fetch("http://127.0.0.1:8000/api/v1/carbontwin/chat", {
+      const response = await fetch(getApiUrl("/api/v1/carbontwin/chat"), {
         method: "POST",
         headers: {
           "Content-Type": "application/json",

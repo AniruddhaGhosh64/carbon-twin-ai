@@ -1,6 +1,7 @@
 "use client";
 
 import { useState, useEffect } from "react";
+import { getApiUrl } from "@/lib/api";
 import { 
   Award, 
   Flame, 
@@ -113,7 +114,7 @@ export default function ProgressPage() {
     setError(null);
     try {
       // 1. Fetch Overview
-      const overviewRes = await fetch("http://127.0.0.1:8000/api/v1/progress/overview", {
+      const overviewRes = await fetch(getApiUrl("/api/v1/progress/overview"), {
         headers: { "X-User-Id": "default_user" }
       });
       if (!overviewRes.ok) throw new Error("Failed to load progress overview");
@@ -121,7 +122,7 @@ export default function ProgressPage() {
       setOverview(overviewJson);
 
       // 2. Fetch Performance
-      const perfRes = await fetch(`http://127.0.0.1:8000/api/v1/progress/performance?timeframe=${timeframe}`, {
+      const perfRes = await fetch(getApiUrl(`/api/v1/progress/performance?timeframe=${timeframe}`), {
         headers: { "X-User-Id": "default_user" }
       });
       if (perfRes.ok) {
@@ -130,7 +131,7 @@ export default function ProgressPage() {
       }
 
       // 3. Fetch Achievements
-      const achRes = await fetch("http://127.0.0.1:8000/api/v1/progress/achievements", {
+      const achRes = await fetch(getApiUrl("/api/v1/progress/achievements"), {
         headers: { "X-User-Id": "default_user" }
       });
       if (achRes.ok) {
@@ -139,7 +140,7 @@ export default function ProgressPage() {
       }
 
       // 4. Fetch History
-      const historyRes = await fetch("http://127.0.0.1:8000/api/v1/progress/history", {
+      const historyRes = await fetch(getApiUrl("/api/v1/progress/history"), {
         headers: { "X-User-Id": "default_user" }
       });
       if (historyRes.ok) {

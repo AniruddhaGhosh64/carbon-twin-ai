@@ -4,6 +4,7 @@ import { useState } from "react";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/Card";
 import { Slider } from "@/components/ui/Slider";
 import { cn } from "@/lib/utils";
+import { getApiUrl } from "@/lib/api";
 import { Cookie, Plus, Trash2, Sparkles, Loader2, Check, AlertTriangle, ArrowRight } from "lucide-react";
 
 export interface FoodItem {
@@ -122,7 +123,7 @@ export default function FoodTrackingModule({ meals, setMeals }: FoodTrackingModu
     setIsExtracting(true);
 
     try {
-      const response = await fetch("http://127.0.0.1:8000/api/v1/footprint/food/extract", {
+      const response = await fetch(getApiUrl("/api/v1/footprint/food/extract"), {
         method: "POST",
         headers: {
           "Content-Type": "application/json",

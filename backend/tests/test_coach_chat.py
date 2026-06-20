@@ -76,9 +76,23 @@ def test_coach_chat_error_fallback(mock_genai_client_class, mock_sim_repo, mock_
     data = response.json()
     assert "temporarily offline" in data["response"]
 
-def test_coach_chat_rate_limiting():
+@patch("app.services.carbon_coach_service.genai.Client")
+@patch("app.services.carbon_coach_service.assessment_repo")
+@patch("app.services.carbon_coach_service.commitments_repo")
+@patch("app.services.carbon_coach_service.simulator_repo")
+def test_coach_chat_rate_limiting(mock_sim_repo, mock_comm_repo, mock_ass_repo, mock_genai_client_class):
+    mock_ass_repo.get_latest_assessment.return_value = {}
+    mock_comm_repo.get_missions.return_value = []
+    mock_sim_repo.list_scenarios.return_value = []
+
+    mock_response = MagicMock()
+    mock_response.text = "Mocked chat response"
+    mock_client = MagicMock()
+    mock_client.models.generate_content.return_value = mock_response
+    mock_genai_client_class.return_value = mock_client
+
     responses = []
-    for _ in range(11):
+    for _ in range(12):
         responses.append(client.post("/api/v1/carbontwin/chat", json={
             "message": "Hello",
             "history": []

@@ -2,6 +2,7 @@
 
 import React, { createContext, useContext, useState, useEffect, ReactNode } from "react";
 import { useSession } from "next-auth/react";
+import { getApiUrl } from "@/lib/api";
 
 export interface CarbonData {
   total_kg: number;
@@ -185,7 +186,7 @@ export function CarbonProvider({ children }: { children: ReactNode }) {
     setError(null);
     try {
       // 1. Fetch latest calculation
-      const response = await fetch("http://127.0.0.1:8000/api/v1/footprint/latest", {
+      const response = await fetch(getApiUrl("/api/v1/footprint/latest"), {
         headers: { "X-User-Id": userId },
       });
 
@@ -204,7 +205,7 @@ export function CarbonProvider({ children }: { children: ReactNode }) {
         // Parallel fetches for details, failing gracefully
         await Promise.allSettled([
           // Fetch raw assessment
-          fetch("http://127.0.0.1:8000/api/v1/footprint/assessment/latest", {
+          fetch(getApiUrl("/api/v1/footprint/assessment/latest"), {
             headers: { "X-User-Id": userId },
           })
             .then(res => res.ok ? res.json() : null)
@@ -214,7 +215,7 @@ export function CarbonProvider({ children }: { children: ReactNode }) {
             .catch(err => console.error("Failed to fetch raw assessment:", err)),
 
           // Fetch carbon twin
-          fetch(`http://127.0.0.1:8000/api/v1/carbontwin/latest${regenerate ? "?regenerate=true" : ""}`, {
+          fetch(getApiUrl(`/api/v1/carbontwin/latest${regenerate ? "?regenerate=true" : ""}`), {
             headers: { "X-User-Id": userId },
           })
             .then(res => res.ok ? res.json() : null)
@@ -224,7 +225,7 @@ export function CarbonProvider({ children }: { children: ReactNode }) {
             .catch(err => console.error("Failed to fetch twin:", err)),
 
           // Fetch recommendations
-          fetch("http://127.0.0.1:8000/api/v1/dashboard/generate", {
+          fetch(getApiUrl("/api/v1/dashboard/generate"), {
             method: "POST",
             headers: { "X-User-Id": userId },
           })
@@ -250,7 +251,7 @@ export function CarbonProvider({ children }: { children: ReactNode }) {
     setIsLoading(true);
     setError(null);
     try {
-      const response = await fetch("http://127.0.0.1:8000/api/v1/footprint/calculate", {
+      const response = await fetch(getApiUrl("/api/v1/footprint/calculate"), {
         method: "POST",
         headers: {
           "Content-Type": "application/json",
@@ -294,7 +295,7 @@ export function CarbonProvider({ children }: { children: ReactNode }) {
     setIsLoading(true);
     setError(null);
     try {
-      const response = await fetch("http://127.0.0.1:8000/api/v1/carbontwin/generate", {
+      const response = await fetch(getApiUrl("/api/v1/carbontwin/generate"), {
         method: "POST",
         headers: {
           "Content-Type": "application/json",

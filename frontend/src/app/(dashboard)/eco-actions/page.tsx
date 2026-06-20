@@ -1,6 +1,7 @@
 "use client";
 
 import { useState, useEffect } from "react";
+import { getApiUrl } from "@/lib/api";
 import { 
   Zap, 
   Train, 
@@ -110,7 +111,7 @@ export default function EcoActionsPage() {
     setLoading(true);
     setError(null);
     try {
-      const response = await fetch("http://127.0.0.1:8000/api/v1/eco-actions/missions", {
+      const response = await fetch(getApiUrl("/api/v1/eco-actions/missions"), {
         headers: { "X-User-Id": "default_user" }
       });
       if (!response.ok) {
@@ -152,7 +153,7 @@ export default function EcoActionsPage() {
   const handleAdoptSubmit = async () => {
     if (!adoptingMission) return;
     try {
-      const response = await fetch("http://127.0.0.1:8000/api/v1/eco-actions/commit", {
+      const response = await fetch(getApiUrl("/api/v1/eco-actions/commit"), {
         method: "POST",
         headers: {
           "Content-Type": "application/json",
@@ -195,7 +196,7 @@ export default function EcoActionsPage() {
       return;
     }
     try {
-      const response = await fetch("http://127.0.0.1:8000/api/v1/eco-actions/custom", {
+      const response = await fetch(getApiUrl("/api/v1/eco-actions/custom"), {
         method: "POST",
         headers: {
           "Content-Type": "application/json",
@@ -244,7 +245,7 @@ export default function EcoActionsPage() {
   const handleCancelMission = async (missionId: string) => {
     if (!confirm("Are you sure you want to cancel this mission?")) return;
     try {
-      const response = await fetch(`http://127.0.0.1:8000/api/v1/eco-actions/cancel/${missionId}`, {
+      const response = await fetch(getApiUrl(`/api/v1/eco-actions/cancel/${missionId}`), {
         method: "POST",
         headers: { "X-User-Id": "default_user" }
       });
@@ -258,7 +259,7 @@ export default function EcoActionsPage() {
 
   const handleCompleteMission = async (missionId: string) => {
     try {
-      const response = await fetch(`http://127.0.0.1:8000/api/v1/eco-actions/complete/${missionId}`, {
+      const response = await fetch(getApiUrl(`/api/v1/eco-actions/complete/${missionId}`), {
         method: "POST",
         headers: { "X-User-Id": "default_user" }
       });
@@ -279,7 +280,7 @@ export default function EcoActionsPage() {
         verified_auto: verifiedAuto
       };
 
-      const response = await fetch(`http://127.0.0.1:8000/api/v1/eco-actions/check-in/${mission.id}`, {
+      const response = await fetch(getApiUrl(`/api/v1/eco-actions/check-in/${mission.id}`), {
         method: "POST",
         headers: {
           "Content-Type": "application/json",

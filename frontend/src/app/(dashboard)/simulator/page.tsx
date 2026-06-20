@@ -2,6 +2,7 @@
 
 import { useState, useEffect } from "react";
 import Link from "next/link";
+import { getApiUrl } from "@/lib/api";
 import { 
   RotateCcw, 
   Save, 
@@ -113,7 +114,7 @@ export default function SimulatorPage() {
   // Fetch saved scenarios
   const fetchScenarios = async () => {
     try {
-      const response = await fetch("http://127.0.0.1:8000/api/v1/simulator/scenarios", {
+      const response = await fetch(getApiUrl("/api/v1/simulator/scenarios"), {
         headers: {
           "X-User-Id": "default_user",
         }
@@ -131,7 +132,7 @@ export default function SimulatorPage() {
   const fetchSimulation = async () => {
     setLoading(true);
     try {
-      const response = await fetch("http://127.0.0.1:8000/api/v1/simulator/calculate", {
+      const response = await fetch(getApiUrl("/api/v1/simulator/calculate"), {
         method: "POST",
         headers: {
           "Content-Type": "application/json",
@@ -215,7 +216,7 @@ export default function SimulatorPage() {
     setSaveSuccess(false);
     try {
       const scenarioName = prompt("Enter a name for this scenario:", "My Carbon Plan") || "My Carbon Plan";
-      const response = await fetch("http://127.0.0.1:8000/api/v1/simulator/scenario", {
+      const response = await fetch(getApiUrl("/api/v1/simulator/scenario"), {
         method: "POST",
         headers: {
           "Content-Type": "application/json",
@@ -270,7 +271,7 @@ export default function SimulatorPage() {
       const scenarioName = "Applied Simulator Strategy";
       
       // 1. POST Apply to Twin Snapshot
-      const response = await fetch("http://127.0.0.1:8000/api/v1/carbontwin/apply_simulation", {
+      const response = await fetch(getApiUrl("/api/v1/carbontwin/apply_simulation"), {
         method: "POST",
         headers: {
           "Content-Type": "application/json",
@@ -300,7 +301,7 @@ export default function SimulatorPage() {
       });
 
       // 2. Commit Simulation Levers as committed Eco Actions
-      await fetch("http://127.0.0.1:8000/api/v1/dashboard/commit_simulation", {
+      await fetch(getApiUrl("/api/v1/dashboard/commit_simulation"), {
         method: "POST",
         headers: {
           "Content-Type": "application/json",
@@ -359,7 +360,7 @@ export default function SimulatorPage() {
   const handleDeleteScenario = async (id: string) => {
     if (!confirm("Are you sure you want to delete this scenario?")) return;
     try {
-      const response = await fetch(`http://127.0.0.1:8000/api/v1/simulator/scenario/${id}`, {
+      const response = await fetch(getApiUrl(`/api/v1/simulator/scenario/${id}`), {
         method: "DELETE",
         headers: {
           "X-User-Id": "default_user",
