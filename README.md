@@ -296,14 +296,34 @@ NEXT_PUBLIC_API_URL=http://127.0.0.1:8000
 
 ## ☁️ Deployment
 
-### Google Cloud Run Deployment
-To deploy backend to Google Cloud Run:
-```bash
-# Build container image
-gcloud builds submit --tag gcr.io/your-project-id/carbontwin-backend
+### Docker Configuration
+Both the backend and frontend are fully containerized for production deployment.
 
-# Deploy to Cloud Run
-gcloud run deploy carbontwin-backend --image gcr.io/your-project-id/carbontwin-backend --platform managed --allow-unauthenticated
+- **Backend:** `backend/Dockerfile` builds a lightweight FastAPI service using a non-root user.
+- **Frontend:** `frontend/Dockerfile` utilizes a Next.js multi-stage build that packages the standalone output for an optimized footprint.
+
+### Google Cloud Run Deployment
+
+**Deploy the Backend:**
+```bash
+cd backend
+gcloud builds submit --tag gcr.io/your-project-id/carbontwin-backend
+gcloud run deploy carbontwin-backend \
+    --image gcr.io/your-project-id/carbontwin-backend \
+    --platform managed \
+    --allow-unauthenticated \
+    --set-env-vars="GEMINI_API_KEY=your_key,FIREBASE_PROJECT_ID=your_id"
+```
+
+**Deploy the Frontend:**
+```bash
+cd frontend
+gcloud builds submit --tag gcr.io/your-project-id/carbontwin-frontend
+gcloud run deploy carbontwin-frontend \
+    --image gcr.io/your-project-id/carbontwin-frontend \
+    --platform managed \
+    --allow-unauthenticated \
+    --set-env-vars="NEXT_PUBLIC_API_URL=https://your-backend-url.run.app"
 ```
 
 Live Demo:
