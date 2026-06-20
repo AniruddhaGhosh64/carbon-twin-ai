@@ -1,0 +1,11 @@
+[tool.pyright]
+venvPath = "."
+venv = "venv"
+pythonPath = "venv/Scripts/python.exe"
+include = ["app", "tests"]
+exclude = ["venv", "__pycache__"]
+
+[tool.pyrefly]
+venvPath = "."
+venv = "venv"
+pythonPath = "venv/Scripts/python.exe"

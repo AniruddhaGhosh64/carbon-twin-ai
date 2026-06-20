@@ -1,0 +1,6 @@
+[
+  {"code": "CCU", "name": "Netaji Subhash Chandra Bose", "city": "Kolkata", "lat": 22.6546, "lng": 88.4467},
+  {"code": "DEL", "name": "Indira Gandhi International", "city": "New Delhi", "lat": 28.5562, "lng": 77.1000},
+  {"code": "BOM", "name": "Chhatrapati Shivaji Maharaj", "city": "Mumbai", "lat": 19.0896, "lng": 72.8656},
+  {"code": "BLR", "name": "Kempegowda International", "city": "Bengaluru", "lat": 13.1986, "lng": 77.7066}
+]
