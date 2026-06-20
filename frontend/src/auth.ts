@@ -108,5 +108,5 @@ export const { handlers, signIn, signOut, auth } = NextAuth({
     signIn: "/",
     error: "/",
   },
-  secret: process.env.AUTH_SECRET || "default_auth_secret_key_for_development_purposes_only",
+  secret: process.env.AUTH_SECRET,
 });
