@@ -171,7 +171,7 @@ export default function CarbonCoachAssistant() {
               <div className="space-y-4 py-4 animate-in fade-in duration-300">
                 <div className="bg-surface-container-low/60 rounded-xl p-4 border border-outline-variant/20">
                   <p className="text-body-sm text-on-surface mb-2 font-medium">
-                    Hello! I'm your Carbon Coach. 🌿
+                    Hello! I&apos;m your Carbon Coach. 🌿
                   </p>
                   <p className="text-body-sm text-on-surface-variant leading-relaxed">
                     I have access to your active footprint calculation, simulator projections, adopted eco missions, and twin options. Ask me anything to discover how to maximize your carbon reductions and financial savings!
