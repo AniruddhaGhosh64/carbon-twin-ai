@@ -28,5 +28,3 @@ class Settings(BaseSettings):
         return [x for x in keys if not (x in seen or seen.add(x))]
 
 settings = Settings()
-
-
