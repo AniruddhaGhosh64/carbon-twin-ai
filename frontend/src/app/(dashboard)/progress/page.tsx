@@ -123,7 +123,7 @@ function ProgressPage() {
         </div>
         
         {/* Tab Navigation */}
-        <div className="flex items-center gap-1 bg-[#01110b] border border-glass p-1 rounded-md self-start md:self-auto">
+        <div role="tablist" aria-label="Progress Sections" className="flex items-center gap-1 bg-[#01110b] border border-glass p-1 rounded-md self-start md:self-auto">
           {([
             { id: "overview", label: "Overview" },
             { id: "performance", label: "Performance" },
@@ -132,9 +132,13 @@ function ProgressPage() {
           ] as const).map((tab) => (
             <button
               key={tab.id}
+              id={`tab-${tab.id}`}
+              role="tab"
+              aria-selected={activeTab === tab.id}
+              aria-controls={`panel-${tab.id}`}
               onClick={() => setActiveTab(tab.id)}
               className={cn(
-                "px-3 py-1.5 rounded-md text-[10px] font-bold uppercase tracking-wider transition-all",
+                "px-3 py-1.5 rounded-md text-[10px] font-bold uppercase tracking-wider transition-all focus-visible:ring-2 focus-visible:ring-primary focus-visible:ring-offset-2 focus:outline-none",
                 activeTab === tab.id 
                   ? "bg-primary-container/20 text-primary border border-primary/20" 
                   : "text-on-surface-variant hover:text-on-surface"
@@ -148,7 +152,7 @@ function ProgressPage() {
 
       {/* TAB CONTENT: OVERVIEW */}
       {activeTab === "overview" && (
-        <div className="space-y-stack-lg animate-fade-in">
+        <div id="panel-overview" role="tabpanel" aria-labelledby="tab-overview" tabIndex={0} className="outline-none space-y-stack-lg animate-fade-in">
           
           {/* Overview Hero Panel */}
           <div className="grid gap-gutter md:grid-cols-4">
@@ -306,7 +310,7 @@ function ProgressPage() {
 
       {/* TAB CONTENT: PERFORMANCE */}
       {activeTab === "performance" && performance && (
-        <div className="space-y-stack-lg animate-fade-in">
+        <div id="panel-performance" role="tabpanel" aria-labelledby="tab-performance" tabIndex={0} className="outline-none space-y-stack-lg animate-fade-in">
           
           {/* Category Performance Grid: Projected vs Actual vs Variance */}
           <div className="grid gap-gutter sm:grid-cols-2 lg:grid-cols-4">
@@ -423,7 +427,7 @@ function ProgressPage() {
 
       {/* TAB CONTENT: ACHIEVEMENTS */}
       {activeTab === "achievements" && achievements && (
-        <div className="space-y-stack-lg animate-fade-in text-left">
+        <div id="panel-achievements" role="tabpanel" aria-labelledby="tab-achievements" tabIndex={0} className="outline-none space-y-stack-lg animate-fade-in text-left">
           
           {/* XP Status Card */}
           <Card className="border border-glass bg-glass p-6 relative overflow-hidden group flex flex-col justify-between">
@@ -453,6 +457,7 @@ function ProgressPage() {
                     : "border-glass bg-glass/60 opacity-75"
                 )}
               >
+                <span className="sr-only">{b.earned ? "Earned Achievement" : "Locked Achievement"}</span>
                 <div className="flex gap-4">
                   <div className={cn(
                     "h-11 w-11 rounded-lg border flex items-center justify-center shrink-0",
@@ -497,7 +502,7 @@ function ProgressPage() {
 
       {/* TAB CONTENT: HISTORY */}
       {activeTab === "history" && (
-        <div className="space-y-stack-lg animate-fade-in text-left">
+        <div id="panel-history" role="tabpanel" aria-labelledby="tab-history" tabIndex={0} className="outline-none space-y-stack-lg animate-fade-in text-left">
           
           {/* Historical emissions area chart */}
           <Card className="border border-glass bg-glass">
@@ -508,7 +513,7 @@ function ProgressPage() {
               </div>
               
               {/* Historical scaling timeframe buttons */}
-              <div className="flex items-center gap-1.5 bg-[#01110b] border border-glass p-1 rounded-md">
+              <div role="tablist" aria-label="Historical Timeframe Selector" className="flex items-center gap-1.5 bg-[#01110b] border border-glass p-1 rounded-md">
                 {([
                   { id: "30d", label: "30D" },
                   { id: "90d", label: "90D" },
@@ -517,9 +522,11 @@ function ProgressPage() {
                 ] as const).map((tf) => (
                   <button
                     key={tf.id}
+                    role="tab"
+                    aria-selected={timeframe === tf.id}
                     onClick={() => setTimeframe(tf.id)}
                     className={cn(
-                      "px-3 py-1.5 rounded-md text-[10px] font-bold uppercase tracking-wider transition-all",
+                      "px-3 py-1.5 rounded-md text-[10px] font-bold uppercase tracking-wider transition-all focus-visible:ring-2 focus-visible:ring-primary focus-visible:ring-offset-2 focus:outline-none",
                       timeframe === tf.id ? "bg-primary-container/20 text-primary border border-primary/20" : "text-on-surface-variant hover:text-on-surface"
                     )}
                   >

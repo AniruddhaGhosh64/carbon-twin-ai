@@ -5,6 +5,24 @@ from app.schemas.assessment import AssessmentCreateRequest, CommuteMethod, Vehic
 from app.services.carbon_service import CarbonCalculationService
 from app.schemas.recommendations import EcoAction
 from app.core.config import settings
+from app.core.constants import (
+    VEHICLE_FACTORS,
+    METRO_RECOMMENDATION_SAVINGS_PER_KM,
+    CARPOOL_RECOMMENDATION_SAVINGS_PER_KM,
+    CYCLE_RECOMMENDATION_SAVINGS_PER_KM_CAR,
+    CYCLE_RECOMMENDATION_SAVINGS_PER_KM_FALLBACK,
+    CYCLE_RECOMMENDATION_FACTOR_FALLBACK,
+    MEAT_REDUCTION_RECOMMENDATION_SAVINGS_HIGH_MEAT,
+    MEAT_REDUCTION_RECOMMENDATION_SAVINGS_FALLBACK,
+    MEAT_REDUCTION_RECOMMENDATION_SAVED_KG,
+    ENERGY_EFFICIENCY_RECOMMENDATION_KWH_THRESHOLD,
+    ENERGY_EFFICIENCY_REDUCTION_PERCENT,
+    ENERGY_EFFICIENCY_ELECTRICITY_COST_USD,
+    RENEWABLE_PROVIDER_TARGET_PERCENT,
+    GRID_EMISSIONS_FACTOR_KG_PER_KWH,
+    MONTHS_IN_YEAR,
+    TRANSIT_FACTOR
+)
 
 class RecommendationService:
     @staticmethod
@@ -63,18 +81,11 @@ class RecommendationService:
         # 1. Use Metro (Transit)
         if assessment.transportation.commute_method == CommuteMethod.CAR:
             dist = assessment.transportation.weekly_distance_km or 0.0
-            factor = 0.192
-            if assessment.transportation.vehicle_type == VehicleType.GASOLINE:
-                factor = 0.192
-            elif assessment.transportation.vehicle_type == VehicleType.DIESEL:
-                factor = 0.232
-            elif assessment.transportation.vehicle_type == VehicleType.HYBRID:
-                factor = 0.109
-            elif assessment.transportation.vehicle_type == VehicleType.ELECTRIC:
-                factor = 0.053
+            v_type = assessment.transportation.vehicle_type.value if hasattr(assessment.transportation.vehicle_type, "value") else str(assessment.transportation.vehicle_type)
+            factor = VEHICLE_FACTORS.get(v_type, 0.192)
                 
             commute_savings_kg = dist * 52 * factor
-            savings_usd = dist * 52 * 0.05
+            savings_usd = dist * 52 * METRO_RECOMMENDATION_SAVINGS_PER_KM
             actions.append(EcoAction(
                 id="use_metro",
                 action_title="Use Public Metro/Transit",
@@ -88,18 +99,11 @@ class RecommendationService:
         # 2. Carpool
         if assessment.transportation.commute_method == CommuteMethod.CAR:
             dist = assessment.transportation.weekly_distance_km or 0.0
-            factor = 0.192
-            if assessment.transportation.vehicle_type == VehicleType.GASOLINE:
-                factor = 0.192
-            elif assessment.transportation.vehicle_type == VehicleType.DIESEL:
-                factor = 0.232
-            elif assessment.transportation.vehicle_type == VehicleType.HYBRID:
-                factor = 0.109
-            elif assessment.transportation.vehicle_type == VehicleType.ELECTRIC:
-                factor = 0.053
+            v_type = assessment.transportation.vehicle_type.value if hasattr(assessment.transportation.vehicle_type, "value") else str(assessment.transportation.vehicle_type)
+            factor = VEHICLE_FACTORS.get(v_type, 0.192)
                 
             commute_savings_kg = dist * 52 * factor * 0.5
-            savings_usd = dist * 52 * 0.075
+            savings_usd = dist * 52 * CARPOOL_RECOMMENDATION_SAVINGS_PER_KM
             actions.append(EcoAction(
                 id="carpool",
                 action_title="Carpool for Daily Commute",
@@ -113,9 +117,12 @@ class RecommendationService:
         # 3. Cycle Weekly
         dist = assessment.transportation.weekly_distance_km or 0.0
         if dist > 0:
-            factor = 0.192 if assessment.transportation.commute_method == CommuteMethod.CAR else 0.05
+            factor = VEHICLE_FACTORS.get(assessment.transportation.vehicle_type.value if hasattr(assessment.transportation.vehicle_type, "value") else str(assessment.transportation.vehicle_type), 0.192) if assessment.transportation.commute_method == CommuteMethod.CAR else CYCLE_RECOMMENDATION_FACTOR_FALLBACK
             cycle_savings_kg = (2/7.0) * dist * 52 * factor
-            savings_usd = (2/7.0) * dist * 52 * (0.15 if assessment.transportation.commute_method == CommuteMethod.CAR else 0.05)
+            
+            savings_rate = CYCLE_RECOMMENDATION_SAVINGS_PER_KM_CAR if assessment.transportation.commute_method == CommuteMethod.CAR else CYCLE_RECOMMENDATION_SAVINGS_PER_KM_FALLBACK
+            savings_usd = (2/7.0) * dist * 52 * savings_rate
+            
             actions.append(EcoAction(
                 id="cycle_weekly",
                 action_title="Cycle 2 Days/Week",
@@ -129,8 +136,8 @@ class RecommendationService:
         # 4. Reduce Meat
         diet = assessment.food_habits.diet_type
         if diet in [FoodHabit.HIGH_MEAT, FoodHabit.MIXED]:
-            saved_kg = 800.0
-            savings_usd = 200.0 if diet == FoodHabit.HIGH_MEAT else 300.0
+            saved_kg = MEAT_REDUCTION_RECOMMENDATION_SAVED_KG
+            savings_usd = MEAT_REDUCTION_RECOMMENDATION_SAVINGS_HIGH_MEAT if diet == FoodHabit.HIGH_MEAT else MEAT_REDUCTION_RECOMMENDATION_SAVINGS_FALLBACK
             actions.append(EcoAction(
                 id="reduce_meat",
                 action_title="Shift Diet (Less Meat)",
@@ -143,10 +150,11 @@ class RecommendationService:
 
         # 5. Reduce Electricity
         kwh = assessment.home_energy.monthly_electricity_kwh or 0.0
-        if kwh > 100:
+        if kwh > ENERGY_EFFICIENCY_RECOMMENDATION_KWH_THRESHOLD:
             ren_pct = assessment.home_energy.renewable_energy_percentage or 0.0
-            saved_kg = kwh * 12 * 0.15 * 0.4 * (1 - ren_pct / 100.0)
-            savings_usd = kwh * 0.15 * 12 * 0.15
+            # 15% reduction -> saved_kg
+            saved_kg = kwh * MONTHS_IN_YEAR * (ENERGY_EFFICIENCY_REDUCTION_PERCENT / 100.0) * GRID_EMISSIONS_FACTOR_KG_PER_KWH * (1.0 - ren_pct / 100.0)
+            savings_usd = kwh * (ENERGY_EFFICIENCY_REDUCTION_PERCENT / 100.0) * MONTHS_IN_YEAR * ENERGY_EFFICIENCY_ELECTRICITY_COST_USD
             actions.append(EcoAction(
                 id="reduce_electricity",
                 action_title="Enhance Energy Efficiency",
@@ -159,8 +167,8 @@ class RecommendationService:
 
         # 6. Switch to Renewables
         ren = assessment.home_energy.renewable_energy_percentage or 0.0
-        if ren < 50:
-            saved_kg = (kwh * 12 * 0.4) * ((50 - ren) / 100.0)
+        if ren < RENEWABLE_PROVIDER_TARGET_PERCENT:
+            saved_kg = (kwh * MONTHS_IN_YEAR * GRID_EMISSIONS_FACTOR_KG_PER_KWH) * ((RENEWABLE_PROVIDER_TARGET_PERCENT - ren) / 100.0)
             actions.append(EcoAction(
                 id="switch_renewables",
                 action_title="Switch to Renewable Provider",
@@ -220,4 +228,3 @@ class RecommendationService:
                 if key_index == len(keys) - 1:
                     return f"Your highest emission contributor is {highest_cat.title()} ({breakdown.get(highest_cat, 0.0)} kg CO2e). Focus on reducing consumption in this sector to lower your footprint."
         return default_fallback
-

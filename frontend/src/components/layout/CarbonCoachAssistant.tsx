@@ -172,7 +172,12 @@ export default function CarbonCoachAssistant() {
           </div>
 
           {/* Messages Viewport */}
-          <div className="flex-1 overflow-y-auto p-4 space-y-4 bg-surface-container-lowest/30">
+          <div
+            className="flex-1 overflow-y-auto p-4 space-y-4 bg-surface-container-lowest/30"
+            aria-live="polite"
+            role="log"
+            aria-relevant="additions"
+          >
             {messages.length === 0 ? (
               <div className="space-y-4 py-4 animate-in fade-in duration-300">
                 <div className="bg-surface-container-low/60 rounded-xl p-4 border border-outline-variant/20">

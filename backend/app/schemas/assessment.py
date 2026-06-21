@@ -82,8 +82,8 @@ class TransportationSchema(BaseModel):
     weekly_distance_km: Optional[float] = None
     annual_flights: Optional[int] = None
 
-    def compute_legacy_fields(self) -> 'TransportationSchema':
-        # Calculate weekly distance across all ground modes
+    def get_mode_distances(self) -> dict[str, float]:
+        """Aggregate ground transit distances (in the native unit) across all days of the week or weekly override."""
         car_dist = 0.0
         transit_dist = 0.0
         bike_dist = 0.0
@@ -102,6 +102,20 @@ class TransportationSchema(BaseModel):
                 bike_dist += daily.bicycle
                 walk_dist += daily.walking
                 
+        return {
+            "car": car_dist,
+            "public_transit": transit_dist,
+            "bicycle": bike_dist,
+            "walking": walk_dist
+        }
+
+    def compute_legacy_fields(self) -> 'TransportationSchema':
+        dists = self.get_mode_distances()
+        car_dist = dists["car"]
+        transit_dist = dists["public_transit"]
+        bike_dist = dists["bicycle"]
+        walk_dist = dists["walking"]
+        
         total_dist = car_dist + transit_dist + bike_dist + walk_dist
         self.weekly_distance_km = total_dist
         
@@ -148,6 +162,8 @@ class ApplianceItemSchema(BaseModel):
         return sanitize_string(v) if isinstance(v, str) else v
 
 
+from app.core.constants import INR_TO_KWH_DIVISOR, DAYS_IN_MONTH, SOLAR_DAILY_GEN_HOURS, SOLAR_CAPACITIES
+
 class HomeEnergySchema(BaseModel):
     household_size: int = Field(ge=1, default=1)
     monthly_electricity_bill_inr: float = Field(ge=0, default=0.0)
@@ -160,21 +176,16 @@ class HomeEnergySchema(BaseModel):
     renewable_energy_percentage: Optional[float] = None
 
     def compute_legacy_fields(self) -> 'HomeEnergySchema':
-        bill_kwh = self.monthly_electricity_bill_inr / 8.0
+        bill_kwh = self.monthly_electricity_bill_inr / INR_TO_KWH_DIVISOR
         
         appliance_kwh = sum(
-            (app.power_watts / 1000.0) * app.quantity * app.daily_usage_hours * 30.0
+            (app.power_watts / 1000.0) * app.quantity * app.daily_usage_hours * DAYS_IN_MONTH
             for app in self.appliances
         )
         
-        solar_capacities = {
-            SolarSetupTier.NONE: 0.0,
-            SolarSetupTier.SMALL: 2.0,
-            SolarSetupTier.MEDIUM: 5.0,
-            SolarSetupTier.LARGE: 10.0
-        }
-        solar_cap = solar_capacities.get(self.solar_tier, 0.0)
-        solar_gen_kwh = solar_cap * 4.0 * 30.0
+        solar_tier_key = self.solar_tier.value if hasattr(self.solar_tier, "value") else str(self.solar_tier)
+        solar_cap = SOLAR_CAPACITIES.get(solar_tier_key, 0.0)
+        solar_gen_kwh = solar_cap * SOLAR_DAILY_GEN_HOURS * DAYS_IN_MONTH
         
         total_gross_kwh = bill_kwh + appliance_kwh
         net_kwh = max(0.0, total_gross_kwh - solar_gen_kwh)
@@ -369,3 +380,39 @@ class AssessmentResponse(AssessmentCreateRequest):
     carbon_score: Optional[int] = None
     emissions_breakdown: Optional[dict] = None
     created_at: str
+
+class CarbonCalculationBreakdown(BaseModel):
+    transportation: float
+    energy: float
+    food: float
+    shopping: float
+
+class CarbonCalculationData(BaseModel):
+    total_kg: float
+    total_tons: float
+    carbon_score: int
+    breakdown: CarbonCalculationBreakdown
+
+class CarbonCalculateResponse(BaseModel):
+    success: bool
+    data: AssessmentResponse
+
+class LatestCalculationResponse(BaseModel):
+    success: bool
+    data: CarbonCalculationData
+
+class LatestAssessmentResponse(BaseModel):
+    success: bool
+    data: AssessmentResponse
+
+class ExtractedMealItem(BaseModel):
+    name: str
+    category: str
+    confidence: Optional[float] = None
+
+class FoodExtractData(BaseModel):
+    items: List[ExtractedMealItem]
+
+class FoodExtractResponse(BaseModel):
+    success: bool
+    data: FoodExtractData

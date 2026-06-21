@@ -3,44 +3,48 @@ from app.schemas.assessment import (
     HomeEnergySchema, 
     FoodHabitsSchema, 
     ShoppingSchema,
-    AssessmentCreateRequest,
-    VehicleType,
-    FoodHabit
+    AssessmentCreateRequest
+)
+from app.core.constants import (
+    VEHICLE_FACTORS,
+    TRANSIT_FACTOR,
+    MILES_TO_KM,
+    INR_TO_KWH_DIVISOR,
+    SOLAR_DAILY_GEN_HOURS,
+    DAYS_IN_MONTH,
+    MONTHS_IN_YEAR,
+    GRID_EMISSIONS_FACTOR_KG_PER_KWH,
+    SOLAR_CAPACITIES,
+    FOOD_CATEGORY_FACTORS,
+    FALLBACK_DAILY_FOOD_EMISSIONS,
+    DAYS_IN_YEAR,
+    CLOTHING_FACTORS,
+    ELECTRONICS_FACTORS,
+    FOOD_DELIVERY_EMISSIONS,
+    PACKAGE_DELIVERY_EMISSIONS,
+    LARGE_PURCHASE_FACTORS,
+    LARGE_PURCHASE_COST_MULTIPLIER,
+    SCORE_THRESHOLD_EXCELLENT_TONS,
+    SCORE_THRESHOLD_POOR_TONS
 )
 
 class CarbonCalculationService:
-    @staticmethod
-    def calculate_transportation(data: TransportationSchema) -> float:
-        # Vehicle factors (kg CO2e per km)
-        vehicle_factors = {
-            VehicleType.GASOLINE: 0.192,
-            VehicleType.DIESEL: 0.232,
-            VehicleType.HYBRID: 0.109,
-            VehicleType.ELECTRIC: 0.053,
-            VehicleType.NONE: 0.0
-        }
-        car_factor = vehicle_factors.get(data.vehicle_type, 0.0)
-        transit_factor = 0.04 # kg CO2e per km
+    @classmethod
+    def calculate_transportation(cls, data: TransportationSchema) -> float:
+        v_type = data.vehicle_type.value if hasattr(data.vehicle_type, "value") else str(data.vehicle_type)
+        car_factor = VEHICLE_FACTORS.get(v_type, 0.0)
         
-        car_dist = 0.0
-        transit_dist = 0.0
-        
-        if data.weekly_override.is_active:
-            car_dist = data.weekly_override.car
-            transit_dist = data.weekly_override.public_transit
-        else:
-            for day in ['monday', 'tuesday', 'wednesday', 'thursday', 'friday', 'saturday', 'sunday']:
-                daily = getattr(data.current_week, day)
-                car_dist += daily.car
-                transit_dist += daily.public_transit
+        dists = data.get_mode_distances()
+        car_dist = dists["car"]
+        transit_dist = dists["public_transit"]
         
         # Unit conversion if user submitted miles
         if data.tracking_unit.value == "miles":
-            car_dist *= 1.60934
-            transit_dist *= 1.60934
+            car_dist *= MILES_TO_KM
+            transit_dist *= MILES_TO_KM
             
         # Ground emissions (kg/year)
-        ground_emissions = (car_dist * car_factor + transit_dist * transit_factor) * 52
+        ground_emissions = (car_dist * car_factor + transit_dist * TRANSIT_FACTOR) * 52
         
         # Flights emissions
         flights_emissions = sum(f.carbon_emissions_kg for f in data.flight_records)
@@ -49,88 +53,64 @@ class CarbonCalculationService:
 
     @staticmethod
     def calculate_energy(data: HomeEnergySchema) -> float:
-        bill_kwh = data.monthly_electricity_bill_inr / 8.0
+        bill_kwh = data.monthly_electricity_bill_inr / INR_TO_KWH_DIVISOR
         
         appliance_kwh = sum(
-            (app.power_watts / 1000.0) * app.quantity * app.daily_usage_hours * 30.0
+            (app.power_watts / 1000.0) * app.quantity * app.daily_usage_hours * DAYS_IN_MONTH
             for app in data.appliances
         )
         
-        solar_capacities = {
-            "none": 0.0,
-            "small": 2.0,
-            "medium": 5.0,
-            "large": 10.0
-        }
-        solar_cap = solar_capacities.get(data.solar_tier.value if hasattr(data.solar_tier, "value") else data.solar_tier, 0.0)
-        solar_gen_kwh = solar_cap * 4.0 * 30.0
+        solar_tier_key = data.solar_tier.value if hasattr(data.solar_tier, "value") else str(data.solar_tier)
+        solar_cap = SOLAR_CAPACITIES.get(solar_tier_key, 0.0)
+        solar_gen_kwh = solar_cap * SOLAR_DAILY_GEN_HOURS * DAYS_IN_MONTH
         
         total_gross_kwh = bill_kwh + appliance_kwh
         net_kwh = max(0.0, total_gross_kwh - solar_gen_kwh)
         
-        annual_emissions = net_kwh * 12 * 0.4
+        annual_emissions = net_kwh * MONTHS_IN_YEAR * GRID_EMISSIONS_FACTOR_KG_PER_KWH
         
         return annual_emissions / max(1, data.household_size)
 
     @staticmethod
     def calculate_food(data: FoodHabitsSchema) -> float:
-        factors = {
-            "beef": 0.060,
-            "dairy": 0.021,
-            "poultry": 0.006,
-            "fish": 0.005,
-            "grains": 0.0015,
-            "vegetables": 0.001,
-            "plant_protein": 0.002,
-            "other": 0.003
-        }
-        
         daily_emissions = 0.0
         for meal in data.meals:
             for item in meal.items:
                 cat_val = item.category.value if hasattr(item.category, "value") else item.category
-                factor = factors.get(cat_val, 0.003)
+                factor = FOOD_CATEGORY_FACTORS.get(cat_val, 0.003)
                 daily_emissions += item.portion_g * factor
                 
         if daily_emissions == 0.0:
-            return 2500.0
+            return FALLBACK_DAILY_FOOD_EMISSIONS
             
-        return daily_emissions * 365.0
+        return daily_emissions * DAYS_IN_YEAR
 
     @staticmethod
     def calculate_shopping(data: ShoppingSchema) -> float:
         clothing_emissions = (
-            data.clothing_items.shirts * 8.0 +
-            data.clothing_items.pants * 15.0 +
-            data.clothing_items.outerwear * 30.0 +
-            data.clothing_items.shoes * 20.0
-        ) * 12.0
+            data.clothing_items.shirts * CLOTHING_FACTORS["shirts"] +
+            data.clothing_items.pants * CLOTHING_FACTORS["pants"] +
+            data.clothing_items.outerwear * CLOTHING_FACTORS["outerwear"] +
+            data.clothing_items.shoes * CLOTHING_FACTORS["shoes"]
+        ) * MONTHS_IN_YEAR
         
         electronics_emissions = (
-            data.electronics_items.phones * 60.0 +
-            data.electronics_items.laptops * 250.0 +
-            data.electronics_items.tvs * 350.0 +
-            data.electronics_items.accessories * 10.0
+            data.electronics_items.phones * ELECTRONICS_FACTORS["phones"] +
+            data.electronics_items.laptops * ELECTRONICS_FACTORS["laptops"] +
+            data.electronics_items.tvs * ELECTRONICS_FACTORS["tvs"] +
+            data.electronics_items.accessories * ELECTRONICS_FACTORS["accessories"]
         )
         
         delivery_emissions = (
-            data.food_deliveries_per_week * 1.5 + 
-            data.package_deliveries_per_week * 2.2
+            data.food_deliveries_per_week * FOOD_DELIVERY_EMISSIONS + 
+            data.package_deliveries_per_week * PACKAGE_DELIVERY_EMISSIONS
         ) * 52.0
-        
-        large_purchase_factors = {
-            "furniture": 300.0,
-            "appliances": 500.0,
-            "ev_vehicle": 6000.0,
-            "gas_vehicle": 12000.0,
-            "other": 150.0
-        }
         
         large_emissions = 0.0
         for purchase in data.large_purchases:
             cat_val = purchase.category.value if hasattr(purchase.category, "value") else purchase.category
-            base_emissions = large_purchase_factors.get(cat_val, 150.0)
-            large_emissions += base_emissions + (purchase.cost_usd * 0.1)
+            base_emissions = LARGE_PURCHASE_FACTORS.get(cat_val, 150.0)
+            large_emissions += base_emissions + (purchase.cost_usd * LARGE_PURCHASE_COST_MULTIPLIER)
             
         return clothing_emissions + electronics_emissions + delivery_emissions + large_emissions
 
@@ -144,12 +124,12 @@ class CarbonCalculationService:
         total_kg = transportation_kg + energy_kg + food_kg + shopping_kg
         total_tons = total_kg / 1000.0
 
-        if total_tons <= 2.0:
+        if total_tons <= SCORE_THRESHOLD_EXCELLENT_TONS:
             carbon_score = 100
-        elif total_tons >= 20.0:
+        elif total_tons >= SCORE_THRESHOLD_POOR_TONS:
             carbon_score = 0
         else:
-            raw_score = 100 - ((total_tons - 2.0) / (20.0 - 2.0)) * 100
+            raw_score = 100 - ((total_tons - SCORE_THRESHOLD_EXCELLENT_TONS) / (SCORE_THRESHOLD_POOR_TONS - SCORE_THRESHOLD_EXCELLENT_TONS)) * 100
             carbon_score = max(0, min(100, round(raw_score)))
 
         return {

@@ -9,6 +9,29 @@ from app.schemas.assessment import (
 from app.schemas.simulator import SimulatorLevers, ProjectionTimeline
 from app.services.carbon_service import CarbonCalculationService
 from copy import deepcopy
+from app.core.constants import (
+    SOLAR_INSTALLATION_COST_USD,
+    APPLIANCE_OPTIMIZATION_COST_USD,
+    BIKE_PURCHASE_COST_USD,
+    DRIVING_SAVINGS_PER_KM,
+    METRO_SAVINGS_PER_KM,
+    CARPOOL_SAVINGS_PER_KM,
+    REDUCED_FLIGHT_SAVINGS_USD,
+    SOLAR_UPGRADE_GEN_DIFF_KWH,
+    SOLAR_SAVINGS_PER_KWH,
+    APPLIANCE_OPTIMIZATION_SAVINGS_RATE,
+    REDUCE_ELECTRICITY_SAVINGS_RATE,
+    REDUCE_BEEF_SAVINGS_PER_G,
+    DIET_TRANSITION_SAVINGS_TABLE,
+    COMBINED_DELIVERY_SAVINGS_PER_ORDER,
+    ELECTRONICS_ITEM_COSTS,
+    CLOTHING_ITEM_COSTS,
+    CO2_SAVED_PER_TREE_KG,
+    MONTHS_IN_YEAR,
+    VEHICLE_FACTORS,
+    DAYS_IN_MONTH,
+    APPLIANCE_OPTIMIZATION_USAGE_FACTOR
+)
 
 class SimulatorService:
     @staticmethod
@@ -25,44 +48,31 @@ class SimulatorService:
         # --- CAPITAL SPENT ---
         if levers.solar_adoption:
             if assessment.home_energy.solar_tier not in [SolarSetupTier.MEDIUM, SolarSetupTier.LARGE]:
-                money_spent_usd += 2500.0
+                money_spent_usd += SOLAR_INSTALLATION_COST_USD
         if levers.appliance_optimization:
-            money_spent_usd += 500.0
+            money_spent_usd += APPLIANCE_OPTIMIZATION_COST_USD
         if levers.cycle_days > 0:
-            money_spent_usd += 300.0
+            money_spent_usd += BIKE_PURCHASE_COST_USD
 
         # --- TRANSPORTATION SIMULATION ---
-        car_dist = 0.0
-        transit_dist = 0.0
-        if assessment.transportation.weekly_override.is_active:
-            car_dist = assessment.transportation.weekly_override.car
-            transit_dist = assessment.transportation.weekly_override.public_transit
-        else:
-            for day in ['monday', 'tuesday', 'wednesday', 'thursday', 'friday', 'saturday', 'sunday']:
-                daily = getattr(assessment.transportation.current_week, day)
-                car_dist += daily.car
-                transit_dist += daily.public_transit
+        dists = assessment.transportation.get_mode_distances()
+        car_dist = dists["car"]
+        transit_dist = dists["public_transit"]
 
-        vehicle_factors = {
-            VehicleType.GASOLINE: 0.192,
-            VehicleType.DIESEL: 0.232,
-            VehicleType.HYBRID: 0.109,
-            VehicleType.ELECTRIC: 0.053,
-            VehicleType.NONE: 0.0
-        }
-        car_factor = vehicle_factors.get(assessment.transportation.vehicle_type, 0.0)
+        v_type = assessment.transportation.vehicle_type.value if hasattr(assessment.transportation.vehicle_type, "value") else str(assessment.transportation.vehicle_type)
+        car_factor = VEHICLE_FACTORS.get(v_type, 0.0)
 
         # 1. Cycle days
         cycle_fraction = min(1.0, levers.cycle_days / 7.0)
         cycle_saved_dist = car_dist * cycle_fraction
         car_dist_after_cycle = car_dist - cycle_saved_dist
-        money_saved_usd += cycle_saved_dist * 0.15 * 52
+        money_saved_usd += cycle_saved_dist * DRIVING_SAVINGS_PER_KM * 52
 
         # 2. Reduce driving percentage
         reduce_driving_pct = levers.reduce_driving_percentage
         driving_saved_dist = car_dist_after_cycle * (reduce_driving_pct / 100.0)
         car_dist_after_reduce = car_dist_after_cycle - driving_saved_dist
-        money_saved_usd += driving_saved_dist * 0.15 * 52
+        money_saved_usd += driving_saved_dist * DRIVING_SAVINGS_PER_KM * 52
 
         # 3. Use Metro / Carpool
         transit_shifted_dist = 0.0
@@ -70,11 +80,11 @@ class SimulatorService:
         if levers.use_metro:
             transit_shifted_dist = car_dist_after_reduce
             car_dist_final = 0.0
-            money_saved_usd += transit_shifted_dist * (0.15 - 0.05) * 52
+            money_saved_usd += transit_shifted_dist * METRO_SAVINGS_PER_KM * 52
         elif levers.carpool:
             carpool_saved_dist = car_dist_after_reduce * 0.5
             car_dist_final = car_dist_after_reduce * 0.5
-            money_saved_usd += carpool_saved_dist * 0.075 * 52
+            money_saved_usd += carpool_saved_dist * CARPOOL_SAVINGS_PER_KM * 52
         else:
             car_dist_final = car_dist_after_reduce
 
@@ -97,7 +107,7 @@ class SimulatorService:
         reduced_flights = min(baseline_flights, levers.flight_reduction_count)
         if reduced_flights > 0:
             sim_assessment.transportation.flight_records = assessment.transportation.flight_records[:-reduced_flights] if reduced_flights < baseline_flights else []
-            money_saved_usd += reduced_flights * 250.0
+            money_saved_usd += reduced_flights * REDUCED_FLIGHT_SAVINGS_USD
 
         # --- HOME ENERGY SIMULATION ---
         # 1. Solar Adoption
@@ -106,17 +116,17 @@ class SimulatorService:
             sim_assessment.home_energy.solar_tier = SolarSetupTier.MEDIUM
             base_gen = 240.0 if baseline_solar_tier == SolarSetupTier.SMALL else 0.0
             solar_gen_diff = 600.0 - base_gen
-            money_saved_usd += solar_gen_diff * 12 * 0.15
+            money_saved_usd += solar_gen_diff * MONTHS_IN_YEAR * SOLAR_SAVINGS_PER_KWH
 
         # 2. Appliance Optimization
         if levers.appliance_optimization:
             appliance_kwh_base = sum(
-                (app.power_watts / 1000.0) * app.quantity * app.daily_usage_hours * 30.0
+                (app.power_watts / 1000.0) * app.quantity * app.daily_usage_hours * DAYS_IN_MONTH
                 for app in assessment.home_energy.appliances
             )
             for app in sim_assessment.home_energy.appliances:
-                app.daily_usage_hours *= 0.8
-            money_saved_usd += appliance_kwh_base * 0.20 * 12 * 0.15
+                app.daily_usage_hours *= APPLIANCE_OPTIMIZATION_USAGE_FACTOR
+            money_saved_usd += appliance_kwh_base * (1.0 - APPLIANCE_OPTIMIZATION_USAGE_FACTOR) * MONTHS_IN_YEAR * APPLIANCE_OPTIMIZATION_SAVINGS_RATE
 
         # 3. Reduce electricity percentage
         reduce_elec_pct = max(levers.reduce_electricity_percentage, float(levers.reduce_electricity))
@@ -124,7 +134,7 @@ class SimulatorService:
             bill_inr = assessment.home_energy.monthly_electricity_bill_inr
             sim_assessment.home_energy.monthly_electricity_bill_inr = bill_inr * (1.0 - reduce_elec_pct / 100.0)
             saved_bill_kwh = (bill_inr * (reduce_elec_pct / 100.0)) / 8.0
-            money_saved_usd += saved_bill_kwh * 12 * 0.15
+            money_saved_usd += saved_bill_kwh * MONTHS_IN_YEAR * REDUCE_ELECTRICITY_SAVINGS_RATE
 
         # --- FOOD SIMULATION ---
         # 1. Reduce Beef
@@ -134,7 +144,7 @@ class SimulatorService:
                     if item.category == FoodCategory.BEEF:
                         reduced_beef = item.portion_g * (levers.reduce_beef_percentage / 100.0)
                         item.portion_g *= (1.0 - levers.reduce_beef_percentage / 100.0)
-                        money_saved_usd += reduced_beef * 365 * 0.015
+                        money_saved_usd += reduced_beef * 365 * REDUCE_BEEF_SAVINGS_PER_G
 
         # 2. Diet Transitions
         dt = levers.diet_transition
@@ -142,22 +152,8 @@ class SimulatorService:
             dt = "balanced"
 
         baseline_diet = assessment.food_habits.diet_type
-        diet_savings_table = {
-            FoodHabit.HIGH_MEAT: {
-                "balanced": 150.0,
-                "vegetarian": 400.0,
-                "vegan": 750.0
-            },
-            FoodHabit.MIXED: {
-                "vegetarian": 250.0,
-                "vegan": 600.0
-            },
-            FoodHabit.VEGETARIAN: {
-                "vegan": 350.0
-            }
-        }
-        if baseline_diet is not None and baseline_diet in diet_savings_table and dt in diet_savings_table[baseline_diet]:
-            money_saved_usd += diet_savings_table[baseline_diet][dt]
+        if baseline_diet is not None and baseline_diet in DIET_TRANSITION_SAVINGS_TABLE and dt in DIET_TRANSITION_SAVINGS_TABLE[baseline_diet]:
+            money_saved_usd += DIET_TRANSITION_SAVINGS_TABLE[baseline_diet][dt]
 
         if dt == "balanced":
             sim_assessment.food_habits.diet_type = FoodHabit.MIXED
@@ -217,10 +213,10 @@ class SimulatorService:
         if levers.reduce_deliveries_percentage > 0:
             food_deliv = assessment.shopping.food_deliveries_per_week
             pkg_deliv = assessment.shopping.package_deliveries_per_week
-            sim_assessment.shopping.food_deliveries_per_week = int(round(food_deliv * (1.0 - levers.reduce_deliveries_percentage / 100.0)))
-            sim_assessment.shopping.package_deliveries_per_week = int(round(pkg_deliv * (1.0 - levers.reduce_deliveries_percentage / 100.0)))
+            sim_assessment.shopping.food_deliveries_per_week = round(food_deliv * (1.0 - levers.reduce_deliveries_percentage / 100.0))
+            sim_assessment.shopping.package_deliveries_per_week = round(pkg_deliv * (1.0 - levers.reduce_deliveries_percentage / 100.0))
             saved_deliv = (food_deliv + pkg_deliv) * (levers.reduce_deliveries_percentage / 100.0)
-            money_saved_usd += saved_deliv * 52 * 3.50
+            money_saved_usd += saved_deliv * 52 * COMBINED_DELIVERY_SAVINGS_PER_ORDER
 
         # 2. Reduced clothing purchases
         if levers.reduce_clothing_percentage > 0:
@@ -229,11 +225,11 @@ class SimulatorService:
             sim_assessment.shopping.clothing_items.outerwear = round(assessment.shopping.clothing_items.outerwear * (1.0 - levers.reduce_clothing_percentage / 100.0))
             sim_assessment.shopping.clothing_items.shoes = round(assessment.shopping.clothing_items.shoes * (1.0 - levers.reduce_clothing_percentage / 100.0))
             clothing_spend_annual = (
-                assessment.shopping.clothing_items.shirts * 30 +
-                assessment.shopping.clothing_items.pants * 50 +
-                assessment.shopping.clothing_items.outerwear * 100 +
-                assessment.shopping.clothing_items.shoes * 80
-            ) * 12
+                assessment.shopping.clothing_items.shirts * CLOTHING_ITEM_COSTS["shirts"] +
+                assessment.shopping.clothing_items.pants * CLOTHING_ITEM_COSTS["pants"] +
+                assessment.shopping.clothing_items.outerwear * CLOTHING_ITEM_COSTS["outerwear"] +
+                assessment.shopping.clothing_items.shoes * CLOTHING_ITEM_COSTS["shoes"]
+            ) * MONTHS_IN_YEAR
             money_saved_usd += clothing_spend_annual * (levers.reduce_clothing_percentage / 100.0)
 
         # 3. Reduced electronics purchases
@@ -243,10 +239,10 @@ class SimulatorService:
             sim_assessment.shopping.electronics_items.tvs = round(assessment.shopping.electronics_items.tvs * (1.0 - levers.reduce_electronics_percentage / 100.0))
             sim_assessment.shopping.electronics_items.accessories = round(assessment.shopping.electronics_items.accessories * (1.0 - levers.reduce_electronics_percentage / 100.0))
             electronics_spend_annual = (
-                assessment.shopping.electronics_items.phones * 800 +
-                assessment.shopping.electronics_items.laptops * 1200 +
-                assessment.shopping.electronics_items.tvs * 600 +
-                assessment.shopping.electronics_items.accessories * 50
+                assessment.shopping.electronics_items.phones * ELECTRONICS_ITEM_COSTS["phones"] +
+                assessment.shopping.electronics_items.laptops * ELECTRONICS_ITEM_COSTS["laptops"] +
+                assessment.shopping.electronics_items.tvs * ELECTRONICS_ITEM_COSTS["tvs"] +
+                assessment.shopping.electronics_items.accessories * ELECTRONICS_ITEM_COSTS["accessories"]
             )
             money_saved_usd += electronics_spend_annual * (levers.reduce_electronics_percentage / 100.0)
 
@@ -271,7 +267,7 @@ class SimulatorService:
             break_even_years = money_spent_usd / money_saved_usd if money_saved_usd > 0 else 999.0
 
         co2_saved_kg = max(0.0, base_emissions_kg - simulated_emissions_kg)
-        trees_equivalent = round(co2_saved_kg / 20.0)
+        trees_equivalent = round(co2_saved_kg / CO2_SAVED_PER_TREE_KG)
 
         emissions_projection = ProjectionTimeline(
             six_months=round(simulated_emissions_kg * 0.5, 2),
@@ -297,7 +293,7 @@ class SimulatorService:
             "money_spent_usd": round(money_spent_usd, 2),
             "roi_percentage": round(roi_percentage, 2),
             "break_even_years": round(break_even_years, 2),
-            "trees_equivalent": int(trees_equivalent),
+            "trees_equivalent": trees_equivalent,
             "emissions_projection": emissions_projection.model_dump(),
             "savings_projection": savings_projection.model_dump(),
             "base_breakdown": base_results["breakdown"],

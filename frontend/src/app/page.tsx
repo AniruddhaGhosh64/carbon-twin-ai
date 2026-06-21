@@ -324,10 +324,14 @@ export default function LandingPage() {
             </div>
 
             {/* Tab Switcher */}
-            <div className="flex w-full rounded-lg bg-surface-container-low p-1 border border-glass">
+            <div role="tablist" aria-label="Authentication Type" className="flex w-full rounded-lg bg-surface-container-low p-1 border border-glass">
               <button
+                id="tab-login"
+                role="tab"
+                aria-selected={authTab === "login"}
+                aria-controls="auth-form-panel"
                 onClick={() => { setAuthTab("login"); setErrorMessage(null); }}
-                className={`flex-1 py-1.5 text-center text-body-sm font-semibold rounded-md transition-all cursor-pointer ${
+                className={`flex-1 py-1.5 text-center text-body-sm font-semibold rounded-md transition-all cursor-pointer focus-visible:ring-2 focus-visible:ring-primary focus-visible:ring-offset-2 focus:outline-none ${
                   authTab === "login"
                     ? "bg-primary text-on-primary shadow-sm"
                     : "text-on-surface-variant hover:text-on-surface"
@@ -337,8 +341,12 @@ export default function LandingPage() {
                 Log In
               </button>
               <button
+                id="tab-signup"
+                role="tab"
+                aria-selected={authTab === "signup"}
+                aria-controls="auth-form-panel"
                 onClick={() => { setAuthTab("signup"); setErrorMessage(null); }}
-                className={`flex-1 py-1.5 text-center text-body-sm font-semibold rounded-md transition-all cursor-pointer ${
+                className={`flex-1 py-1.5 text-center text-body-sm font-semibold rounded-md transition-all cursor-pointer focus-visible:ring-2 focus-visible:ring-primary focus-visible:ring-offset-2 focus:outline-none ${
                   authTab === "signup"
                     ? "bg-primary text-on-primary shadow-sm"
                     : "text-on-surface-variant hover:text-on-surface"
@@ -357,7 +365,7 @@ export default function LandingPage() {
             )}
 
             {/* Form */}
-            <form onSubmit={authTab === "login" ? handleLogin : handleRegister} className="flex flex-col gap-4">
+            <form id="auth-form-panel" role="tabpanel" aria-labelledby={authTab === "login" ? "tab-login" : "tab-signup"} onSubmit={authTab === "login" ? handleLogin : handleRegister} className="flex flex-col gap-4 outline-none">
               {authTab === "signup" && (
                 <div className="space-y-1">
                   <label htmlFor="fullName" className="text-[11px] font-bold text-on-surface-variant uppercase tracking-wider">Full Name</label>

@@ -127,14 +127,16 @@ function SimulatorPage() {
   // Backend response state
   const [simResults, setSimResults] = useState<SimulatorResponse | null>(null);
   const [loading, setLoading] = useState(false);
+  const [error, setError] = useState<string | null>(null);
 
   // Fetch saved scenarios
   const fetchScenarios = async () => {
     try {
       const data = await api.get<SavedScenario[]>("/api/v1/simulator/scenarios");
       setScenarios(data);
-    } catch (err) {
+    } catch (err: unknown) {
       logger.error("Failed to load scenarios", err);
+      setError(err instanceof Error ? err.message : "Failed to load scenarios. Please try again.");
     }
   };
 
@@ -177,13 +179,15 @@ function SimulatorPage() {
   // Fetch simulation results from backend
   const fetchSimulation = async () => {
     setLoading(true);
+    setError(null);
     try {
       const data = await api.post<SimulatorResponse>("/api/v1/simulator/calculate", {
         levers: debouncedLevers
       });
       setSimResults(data);
-    } catch (err) {
+    } catch (err: unknown) {
       logger.error("Simulation request failed", err);
+      setError(err instanceof Error ? err.message : "Simulation request failed. Please check your network connection.");
     } finally {
       setLoading(false);
     }
@@ -505,6 +509,28 @@ function SimulatorPage() {
         </div>
       </div>
 
+      {/* Error Banner */}
+      {error && (
+        <div className="flex items-center gap-3 p-4 rounded-xl border border-red-500/30 bg-red-500/10 text-red-300" role="alert">
+          <AlertTriangle className="h-5 w-5 flex-shrink-0" />
+          <p className="text-sm flex-1">{error}</p>
+          <button
+            onClick={() => { setError(null); fetchSimulation(); }}
+            className="px-3 py-1.5 rounded-lg bg-red-500/20 text-red-300 text-xs font-semibold hover:bg-red-500/30 transition-colors"
+          >
+            Retry
+          </button>
+        </div>
+      )}
+
+      {/* Loading Overlay */}
+      {loading && (
+        <div className="flex items-center gap-2 text-sm text-on-surface-variant animate-pulse" aria-live="polite">
+          <div className="h-4 w-4 border-2 border-primary border-t-transparent rounded-full animate-spin" />
+          Calculating impact...
+        </div>
+      )}
+
       {/* 1. HORIZONTAL HERO ROW (Metrics Grid) */}
       <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-4">
         {/* Reduction % Card */}
@@ -824,7 +850,7 @@ function SimulatorPage() {
 
                 <div className="space-y-1.5 pt-2">
                   <div className="flex justify-between">
-                    <span className="text-xs font-bold text-on-surface">Reduce Weekly Driving</span>
+                    <span id="label-reduce-driving" className="text-xs font-bold text-on-surface">Reduce Weekly Driving</span>
                     <span className="text-xs font-bold text-primary">{reduceDrivingPercentage}%</span>
                   </div>
                   <Slider
@@ -832,13 +858,13 @@ function SimulatorPage() {
                     max={100}
                     value={reduceDrivingPercentage}
                     onValueChange={(val) => setReduceDrivingPercentage(val)}
-                    aria-label="Reduce Weekly Driving"
+                    aria-labelledby="label-reduce-driving"
                   />
                 </div>
 
                 <div className="space-y-1.5 pt-2">
                   <div className="flex justify-between">
-                    <span className="text-xs font-bold text-on-surface">Cycling Commutes</span>
+                    <span id="label-cycling-commutes" className="text-xs font-bold text-on-surface">Cycling Commutes</span>
                     <span className="text-xs font-bold text-primary">{cycleDays} Days/Wk</span>
                   </div>
                   <Slider
@@ -846,13 +872,13 @@ function SimulatorPage() {
                     max={7}
                     value={cycleDays}
                     onValueChange={(val) => setCycleDays(val)}
-                    aria-label="Cycling Commutes"
+                    aria-labelledby="label-cycling-commutes"
                   />
                 </div>
 
                 <div className="space-y-1.5 pt-2">
                   <div className="flex justify-between">
-                    <span className="text-xs font-bold text-on-surface">Reduce Annual Flights</span>
+                    <span id="label-annual-flights" className="text-xs font-bold text-on-surface">Reduce Annual Flights</span>
                     <span className="text-xs font-bold text-primary">{flightReductionCount} flights</span>
                   </div>
                   <Slider
@@ -860,7 +886,7 @@ function SimulatorPage() {
                     max={10}
                     value={flightReductionCount}
                     onValueChange={(val) => setFlightReductionCount(val)}
-                    aria-label="Reduce Annual Flights"
+                    aria-labelledby="label-annual-flights"
                   />
                 </div>
               </div>
@@ -887,7 +913,7 @@ function SimulatorPage() {
 
                 <div className="space-y-1.5 pt-2">
                   <div className="flex justify-between">
-                    <span className="text-xs font-bold text-on-surface">Reduce Electricity Grid Draw</span>
+                    <span id="label-electricity-draw" className="text-xs font-bold text-on-surface">Reduce Electricity Grid Draw</span>
                     <span className="text-xs font-bold text-primary">-{reduceElectricityPercentage}%</span>
                   </div>
                   <Slider
@@ -895,7 +921,7 @@ function SimulatorPage() {
                     max={100}
                     value={reduceElectricityPercentage}
                     onValueChange={(val) => setReduceElectricityPercentage(val)}
-                    aria-label="Reduce Electricity Grid Draw"
+                    aria-labelledby="label-electricity-draw"
                   />
                 </div>
               </div>
@@ -906,7 +932,7 @@ function SimulatorPage() {
 
                 <div className="space-y-1.5">
                   <div className="flex justify-between">
-                    <span className="text-xs font-bold text-on-surface">Lower Beef Intake</span>
+                    <span id="label-beef-intake" className="text-xs font-bold text-on-surface">Lower Beef Intake</span>
                     <span className="text-xs font-bold text-primary">-{reduceBeefPercentage}%</span>
                   </div>
                   <Slider
@@ -914,7 +940,7 @@ function SimulatorPage() {
                     max={100}
                     value={reduceBeefPercentage}
                     onValueChange={(val) => setReduceBeefPercentage(val)}
-                    aria-label="Lower Beef Intake"
+                    aria-labelledby="label-beef-intake"
                   />
                 </div>
 
@@ -947,7 +973,7 @@ function SimulatorPage() {
 
                 <div className="space-y-1.5">
                   <div className="flex justify-between">
-                    <span className="text-xs font-bold text-on-surface">Consolidate Deliveries</span>
+                    <span id="label-consolidate-deliveries" className="text-xs font-bold text-on-surface">Consolidate Deliveries</span>
                     <span className="text-xs font-bold text-primary">-{reduceDeliveriesPercentage}%</span>
                   </div>
                   <Slider
@@ -955,13 +981,13 @@ function SimulatorPage() {
                     max={100}
                     value={reduceDeliveriesPercentage}
                     onValueChange={(val) => setReduceDeliveriesPercentage(val)}
-                    aria-label="Consolidate Deliveries"
+                    aria-labelledby="label-consolidate-deliveries"
                   />
                 </div>
 
                 <div className="space-y-1.5 pt-2">
                   <div className="flex justify-between">
-                    <span className="text-xs font-bold text-on-surface">Reduce Clothing Purchases</span>
+                    <span id="label-clothing-purchases" className="text-xs font-bold text-on-surface">Reduce Clothing Purchases</span>
                     <span className="text-xs font-bold text-primary">-{reduceClothingPercentage}%</span>
                   </div>
                   <Slider
@@ -969,13 +995,13 @@ function SimulatorPage() {
                     max={100}
                     value={reduceClothingPercentage}
                     onValueChange={(val) => setReduceClothingPercentage(val)}
-                    aria-label="Reduce Clothing Purchases"
+                    aria-labelledby="label-clothing-purchases"
                   />
                 </div>
 
                 <div className="space-y-1.5 pt-2">
                   <div className="flex justify-between">
-                    <span className="text-xs font-bold text-on-surface">Reduce Electronics Purchases</span>
+                    <span id="label-electronics-purchases" className="text-xs font-bold text-on-surface">Reduce Electronics Purchases</span>
                     <span className="text-xs font-bold text-primary">-{reduceElectronicsPercentage}%</span>
                   </div>
                   <Slider
@@ -983,7 +1009,7 @@ function SimulatorPage() {
                     max={100}
                     value={reduceElectronicsPercentage}
                     onValueChange={(val) => setReduceElectronicsPercentage(val)}
-                    aria-label="Reduce Electronics Purchases"
+                    aria-labelledby="label-electronics-purchases"
                   />
                 </div>
               </div>
@@ -1105,6 +1131,7 @@ function SimulatorPage() {
                   <div className="flex items-center justify-end gap-2 border-t border-glass pt-2">
                     <button 
                       onClick={() => handleLoadScenario(s)}
+                      aria-label={`Load scenario: ${s.name}`}
                       className="inline-flex items-center gap-1.5 px-3 py-1.5 rounded-md bg-surface-container-low/80 hover:bg-surface-container text-xs font-bold text-on-surface hover:text-primary transition-all border border-glass"
                     >
                       <FolderOpen className="h-3.5 w-3.5" />
@@ -1112,6 +1139,7 @@ function SimulatorPage() {
                     </button>
                     <button 
                       onClick={() => handleDeleteScenario(s.id)}
+                      aria-label={`Delete scenario: ${s.name}`}
                       className="inline-flex items-center gap-1.5 px-3 py-1.5 rounded-md bg-red-950/20 hover:bg-red-950/45 text-xs font-bold text-red-400 transition-all border border-red-500/10"
                     >
                       <Trash2 className="h-3.5 w-3.5" />

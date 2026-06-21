@@ -16,7 +16,6 @@ import logger from "@/lib/logger";
 
 interface CarbonContextType {
   carbonData: CarbonData | null;
-  setCarbonData: (data: CarbonData) => void;
   twinData: TwinData | null;
   recommendationData: RecommendationData | null;
   latestAssessment: AssessmentData | null;
@@ -111,7 +110,6 @@ export function CarbonProvider({ children }: { children: ReactNode }) {
     <CarbonContext.Provider
       value={{
         carbonData,
-        setCarbonData: () => {},
         twinData,
         recommendationData,
         latestAssessment,

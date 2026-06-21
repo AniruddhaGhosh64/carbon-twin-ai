@@ -18,6 +18,35 @@ from app.schemas.assessment import (
 from app.services.carbon_service import CarbonCalculationService
 from app.schemas.twin import TwinState, TwinRecommendationItem, TwinProfile
 from copy import deepcopy
+from app.core.constants import (
+    BICYCLE_SWITCH_THRESHOLD_KM,
+    BICYCLE_SAVINGS_PER_KM,
+    TRANSIT_SAVINGS_PER_KM,
+    FLIGHT_SAVINGS_PER_FLIGHT,
+    ELECTRICITY_BILL_REDUCTION_FACTOR,
+    INR_TO_USD_CONVERSION_FACTOR,
+    ANNUAL_SOLAR_SAVINGS_USD,
+    DIET_REDUCTION_FACTOR,
+    DIET_REDUCTION_SAVINGS_USD,
+    DIET_HIGH_MEAT_SHIFT_SAVINGS_USD,
+    DIET_MIXED_SHIFT_SAVINGS_USD,
+    FOOD_DELIVERY_REDUCTION_COUNT,
+    FOOD_DELIVERY_FEE_SAVINGS_USD,
+    PACKAGE_DELIVERY_REDUCTION_COUNT,
+    PACKAGE_DELIVERY_FEE_SAVINGS_USD,
+    CLOTHING_REDUCTION_FACTOR,
+    CLOTHING_ITEM_COSTS,
+    CLOTHING_SPEND_REDUCTION_RATE,
+    MONTHS_IN_YEAR,
+    FREQUENT_FLYER_FLIGHTS,
+    FREQUENT_FLYER_EMISSIONS_KG,
+    HIGH_CONSUMER_SHOPPING_KG,
+    HIGH_CONSUMER_DELIVERIES,
+    HIGH_CONSUMER_CLOTHING_ITEMS,
+    URBAN_OPTIMIZER_RATIO,
+    ENERGY_EFFICIENT_ENERGY_KG,
+    ENERGY_EFFICIENT_RENEWABLE_PCT
+)
 
 class CarbonTwinService:
     @staticmethod
@@ -29,16 +58,11 @@ class CarbonTwinService:
         money_saved = 0.0
 
         # Determine distance
-        car_dist = 0.0
-        if res.transportation.weekly_override.is_active:
-            car_dist = res.transportation.weekly_override.car
-        else:
-            for day in ['monday', 'tuesday', 'wednesday', 'thursday', 'friday', 'saturday', 'sunday']:
-                daily = getattr(res.transportation.current_week, day)
-                car_dist += daily.car
+        dists = res.transportation.get_mode_distances()
+        car_dist = dists["car"]
 
         if car_dist > 0:
-            if car_dist < 100:
+            if car_dist < BICYCLE_SWITCH_THRESHOLD_KM:
                 # Switch to bicycle
                 if res.transportation.weekly_override.is_active:
                     res.transportation.weekly_override.bicycle += car_dist
@@ -48,7 +72,7 @@ class CarbonTwinService:
                         daily = getattr(res.transportation.current_week, day)
                         daily.bicycle += daily.car
                         daily.car = 0.0
-                money_saved = car_dist * 52 * 0.15 # $0.15/km saved
+                money_saved = car_dist * 52 * BICYCLE_SAVINGS_PER_KM
             else:
                 # Switch to public transit
                 if res.transportation.weekly_override.is_active:
@@ -59,7 +83,7 @@ class CarbonTwinService:
                         daily = getattr(res.transportation.current_week, day)
                         daily.public_transit += daily.car
                         daily.car = 0.0
-                money_saved = car_dist * 52 * 0.10 # $0.10/km saved (difference)
+                money_saved = car_dist * 52 * TRANSIT_SAVINGS_PER_KM
 
             res.transportation.vehicle_type = VehicleType.NONE
             res.transportation = TransportationSchema(**res.transportation.model_dump())
@@ -78,7 +102,7 @@ class CarbonTwinService:
             removed_count = len(records) - kept_count
             res.transportation.flight_records = records[:kept_count]
             res.transportation = TransportationSchema(**res.transportation.model_dump())
-            money_saved = removed_count * 300.0 # Estimate $300 per flight saved
+            money_saved = removed_count * FLIGHT_SAVINGS_PER_FLIGHT
         return res, money_saved
 
     @staticmethod
@@ -90,18 +114,16 @@ class CarbonTwinService:
         # Reduce electricity bill by 20%
         bill = res.home_energy.monthly_electricity_bill_inr
         if bill > 0:
-            res.home_energy.monthly_electricity_bill_inr = bill * 0.8
-            # Savings: 20% of bill scaled annually and converted to USD (1 USD = 85 INR roughly, or the factor 8.0 from kwh calculation)
-            # bill_kwh = monthly_electricity_bill_inr / 8.0
-            # electricity cost = $0.15/kWh equivalent. Let's make it simple: 20% of INR bill converted to USD (1 USD = 80 INR)
-            money_saved += (bill * 0.2 * 12) / 80.0
+            res.home_energy.monthly_electricity_bill_inr = bill * ELECTRICITY_BILL_REDUCTION_FACTOR
+            # Savings scaled annually and converted to USD
+            money_saved += (bill * (1.0 - ELECTRICITY_BILL_REDUCTION_FACTOR) * MONTHS_IN_YEAR) / INR_TO_USD_CONVERSION_FACTOR
 
         # Upgrade solar tier to MEDIUM if NONE or SMALL
         tier = res.home_energy.solar_tier
         if tier in [SolarSetupTier.NONE, SolarSetupTier.SMALL]:
             res.home_energy.solar_tier = SolarSetupTier.MEDIUM
             # Installing solar panels saves money on utility bills
-            money_saved += 150.0 # Est annual solar generation value
+            money_saved += ANNUAL_SOLAR_SAVINGS_USD
 
         res.home_energy = HomeEnergySchema(**res.home_energy.model_dump())
         return res, money_saved
@@ -117,11 +139,10 @@ class CarbonTwinService:
             for item in meal.items:
                 if item.category in [FoodCategory.BEEF, FoodCategory.POULTRY, FoodCategory.FISH]:
                     # Halve portion size
-                    saved_portion = item.portion_g * 0.5
-                    item.portion_g *= 0.5
+                    saved_portion = item.portion_g * DIET_REDUCTION_FACTOR
+                    item.portion_g *= DIET_REDUCTION_FACTOR
                     has_meat = True
                     # Shift saved portion to plant protein
-                    # Find if plant protein already exists in this meal, or append
                     protein_item = next((x for x in meal.items if x.category == FoodCategory.PLANT_PROTEIN), None)
                     if protein_item:
                         protein_item.portion_g += saved_portion
@@ -134,16 +155,16 @@ class CarbonTwinService:
                         new_item.portion_g = saved_portion
 
         if has_meat:
-            money_saved = 200.0 # Annual savings on grocery bills from less meat
+            money_saved = DIET_REDUCTION_SAVINGS_USD
         else:
             # Fallback if no meals logged
             diet = res.food_habits.diet_type
             if diet == FoodHabit.HIGH_MEAT:
                 res.food_habits.diet_type = FoodHabit.MIXED
-                money_saved = 150.0
+                money_saved = DIET_HIGH_MEAT_SHIFT_SAVINGS_USD
             elif diet == FoodHabit.MIXED:
                 res.food_habits.diet_type = FoodHabit.VEGETARIAN
-                money_saved = 250.0
+                money_saved = DIET_MIXED_SHIFT_SAVINGS_USD
 
         res.food_habits = FoodHabitsSchema(**res.food_habits.model_dump())
         return res, money_saved
@@ -157,28 +178,28 @@ class CarbonTwinService:
         # Reduce deliveries
         fd = res.shopping.food_deliveries_per_week
         if fd > 0:
-            res.shopping.food_deliveries_per_week = max(0, fd - 2)
-            money_saved += (fd - res.shopping.food_deliveries_per_week) * 52 * 5.0 # $5 delivery fee
+            res.shopping.food_deliveries_per_week = max(0, fd - FOOD_DELIVERY_REDUCTION_COUNT)
+            money_saved += (fd - res.shopping.food_deliveries_per_week) * 52 * FOOD_DELIVERY_FEE_SAVINGS_USD
 
         pd = res.shopping.package_deliveries_per_week
         if pd > 0:
-            res.shopping.package_deliveries_per_week = max(0, pd - 1)
-            money_saved += (pd - res.shopping.package_deliveries_per_week) * 52 * 10.0 # $10 delivery/shipping fees
+            res.shopping.package_deliveries_per_week = max(0, pd - PACKAGE_DELIVERY_REDUCTION_COUNT)
+            money_saved += (pd - res.shopping.package_deliveries_per_week) * 52 * PACKAGE_DELIVERY_FEE_SAVINGS_USD
 
-        # Reduce clothing purchases by 15%
-        res.shopping.clothing_items.shirts = round(res.shopping.clothing_items.shirts * 0.85)
-        res.shopping.clothing_items.pants = round(res.shopping.clothing_items.pants * 0.85)
-        res.shopping.clothing_items.outerwear = round(res.shopping.clothing_items.outerwear * 0.85)
-        res.shopping.clothing_items.shoes = round(res.shopping.clothing_items.shoes * 0.85)
+        # Reduce clothing purchases
+        res.shopping.clothing_items.shirts = round(res.shopping.clothing_items.shirts * CLOTHING_REDUCTION_FACTOR)
+        res.shopping.clothing_items.pants = round(res.shopping.clothing_items.pants * CLOTHING_REDUCTION_FACTOR)
+        res.shopping.clothing_items.outerwear = round(res.shopping.clothing_items.outerwear * CLOTHING_REDUCTION_FACTOR)
+        res.shopping.clothing_items.shoes = round(res.shopping.clothing_items.shoes * CLOTHING_REDUCTION_FACTOR)
         
         # Estimate shopping spend reduction
         clothing_spend_annual = (
-            assessment.shopping.clothing_items.shirts * 30 +
-            assessment.shopping.clothing_items.pants * 50 +
-            assessment.shopping.clothing_items.outerwear * 100 +
-            assessment.shopping.clothing_items.shoes * 80
-        ) * 12
-        money_saved += clothing_spend_annual * 0.15
+            assessment.shopping.clothing_items.shirts * CLOTHING_ITEM_COSTS["shirts"] +
+            assessment.shopping.clothing_items.pants * CLOTHING_ITEM_COSTS["pants"] +
+            assessment.shopping.clothing_items.outerwear * CLOTHING_ITEM_COSTS["outerwear"] +
+            assessment.shopping.clothing_items.shoes * CLOTHING_ITEM_COSTS["shoes"]
+        ) * MONTHS_IN_YEAR
+        money_saved += clothing_spend_annual * CLOTHING_SPEND_REDUCTION_RATE
 
         res.shopping = ShoppingSchema(**res.shopping.model_dump())
         return res, money_saved
@@ -188,23 +209,11 @@ class CarbonTwinService:
         from app.schemas.assessment import VehicleType, SolarSetupTier
 
         # Calculate commute details
-        car_dist = 0.0
-        transit_dist = 0.0
-        bike_dist = 0.0
-        walk_dist = 0.0
-        
-        if assessment.transportation.weekly_override.is_active:
-            car_dist = assessment.transportation.weekly_override.car
-            transit_dist = assessment.transportation.weekly_override.public_transit
-            bike_dist = assessment.transportation.weekly_override.bicycle
-            walk_dist = assessment.transportation.weekly_override.walking
-        else:
-            for day in ['monday', 'tuesday', 'wednesday', 'thursday', 'friday', 'saturday', 'sunday']:
-                daily = getattr(assessment.transportation.current_week, day)
-                car_dist += daily.car
-                transit_dist += daily.public_transit
-                bike_dist += daily.bicycle
-                walk_dist += daily.walking
+        dists = assessment.transportation.get_mode_distances()
+        car_dist = dists["car"]
+        transit_dist = dists["public_transit"]
+        bike_dist = dists["bicycle"]
+        walk_dist = dists["walking"]
 
         total_commute = car_dist + transit_dist + bike_dist + walk_dist
         
@@ -230,7 +239,7 @@ class CarbonTwinService:
 
         # Classification priorities:
         # 1. Frequent Flyer
-        if num_flights >= 3 or flight_emissions > 2000.0:
+        if num_flights >= FREQUENT_FLYER_FLIGHTS or flight_emissions > FREQUENT_FLYER_EMISSIONS_KG:
             return TwinProfile(
                 archetype="Frequent Flyer",
                 strengths=[
@@ -253,7 +262,7 @@ class CarbonTwinService:
             )
 
         # 2. High Consumption Shopper
-        if shopping_emissions > 1500.0 or (food_deliveries + package_deliveries) > 6 or clothing_purchases > 5:
+        if shopping_emissions > HIGH_CONSUMER_SHOPPING_KG or (food_deliveries + package_deliveries) > HIGH_CONSUMER_DELIVERIES or clothing_purchases > HIGH_CONSUMER_CLOTHING_ITEMS:
             return TwinProfile(
                 archetype="High Consumption Shopper",
                 strengths=[
@@ -279,7 +288,7 @@ class CarbonTwinService:
         transit_ratio = (bike_dist + walk_dist + transit_dist) / total_commute if total_commute > 0 else 0.0
         is_clean_vehicle = assessment.transportation.vehicle_type in [VehicleType.ELECTRIC, VehicleType.HYBRID]
         
-        if (total_commute > 0 and transit_ratio >= 0.6) or (is_clean_vehicle and car_dist > 0):
+        if (total_commute > 0 and transit_ratio >= URBAN_OPTIMIZER_RATIO) or (is_clean_vehicle and car_dist > 0):
             return TwinProfile(
                 archetype="Urban Transit Optimizer",
                 strengths=[
@@ -302,7 +311,7 @@ class CarbonTwinService:
             )
 
         # 4. Energy Efficient Household
-        if state.energy_kg < 500.0 or solar_val in ["medium", "large"] or renewable_pct >= 40.0:
+        if state.energy_kg < ENERGY_EFFICIENT_ENERGY_KG or solar_val in ["medium", "large"] or renewable_pct >= ENERGY_EFFICIENT_RENEWABLE_PCT:
             return TwinProfile(
                 archetype="Energy Efficient Household",
                 strengths=[

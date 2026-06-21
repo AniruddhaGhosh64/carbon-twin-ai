@@ -1,5 +1,11 @@
 from fastapi import APIRouter, Header, HTTPException, Depends
-from app.schemas.assessment import AssessmentCreateRequest
+from app.schemas.assessment import (
+    AssessmentCreateRequest,
+    CarbonCalculateResponse,
+    LatestCalculationResponse,
+    LatestAssessmentResponse,
+    FoodExtractResponse
+)
 from app.services.carbon_service import CarbonCalculationService
 from app.repositories.assessment_repository import AssessmentRepository
 from app.repositories.carbon_repository import CarbonRepository
@@ -12,7 +18,7 @@ assessment_repo = AssessmentRepository()
 carbon_repo = CarbonRepository()
 progress_repo = ProgressRepository()
 
-@router.post("/calculate", response_model=dict)
+@router.post("/calculate", response_model=CarbonCalculateResponse)
 async def calculate_footprint(request: AssessmentCreateRequest, x_user_id: str = Header(default="default_user")):
     """
     Calculate the carbon footprint based on the assessment data and persist to Firestore.
@@ -55,7 +61,7 @@ async def calculate_footprint(request: AssessmentCreateRequest, x_user_id: str =
         "data": data_response
     }
 
-@router.get("/latest", response_model=dict)
+@router.get("/latest", response_model=LatestCalculationResponse)
 def get_latest_calculation(x_user_id: str = Header(default="default_user")):
     """
     Retrieve the user's latest calculation from Firestore.
@@ -68,7 +74,7 @@ def get_latest_calculation(x_user_id: str = Header(default="default_user")):
         "data": calc
     }
 
-@router.get("/assessment/latest", response_model=dict)
+@router.get("/assessment/latest", response_model=LatestAssessmentResponse)
 def get_latest_assessment(x_user_id: str = Header(default="default_user")):
     """
     Retrieve the user's latest assessment from Firestore.
@@ -92,7 +98,7 @@ from app.core.config import settings
 class FoodExtractRequest(BaseModel):
     text: str
 
-@router.post("/food/extract", response_model=dict, dependencies=[Depends(rate_limiter(limit=10, timeframe=60))])
+@router.post("/food/extract", response_model=FoodExtractResponse, dependencies=[Depends(rate_limiter(limit=10, timeframe=60))])
 async def extract_food_items(request: FoodExtractRequest):
     """
     Extract food items, categories, and confidence scores from text using Gemini.

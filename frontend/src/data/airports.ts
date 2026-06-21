@@ -26,9 +26,10 @@ export function calculateFlightDistanceKm(lat1: number, lon1: number, lat2: numb
   return R * c;
 }
 
+import { FLIGHT_EMISSIONS_FACTOR } from "@/lib/constants";
+
 export function calculateFlightEmissions(distanceKm: number, tripType: "one_way" | "round_trip"): number {
-  // 0.15 kg CO2e per passenger-km
-  const factor = 0.15;
+  const factor = FLIGHT_EMISSIONS_FACTOR;
   const multiplier = tripType === "round_trip" ? 2 : 1;
   return distanceKm * factor * multiplier;
 }

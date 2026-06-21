@@ -55,6 +55,7 @@ function EcoActionsPage() {
     completed: []
   });
   const [loading, setLoading] = useState(true);
+  const [error, setError] = useState<string | null>(null);
 
   // Modal states
   const [adoptingMission, setAdoptingMission] = useState<EcoMission | null>(null);
@@ -192,6 +193,7 @@ function EcoActionsPage() {
 
   const fetchMissions = async () => {
     setLoading(true);
+    setError(null);
     try {
       const data = await api.get<MissionsResponse>("/api/v1/eco-actions/missions");
       setMissions({
@@ -201,6 +203,7 @@ function EcoActionsPage() {
       });
     } catch (err) {
       logger.error("Failed to load eco actions data", err);
+      setError(err instanceof Error ? err.message : "Failed to load eco missions. Please try again.");
     } finally {
       setLoading(false);
     }
@@ -362,6 +365,20 @@ function EcoActionsPage() {
 
   return (
     <div className="space-y-stack-lg animate-fade-in text-left">
+      {/* Error Banner */}
+      {error && (
+        <div className="flex items-center gap-3 p-4 rounded-xl border border-red-500/30 bg-red-500/10 text-red-300" role="alert">
+          <AlertTriangle className="h-5 w-5 flex-shrink-0" />
+          <p className="text-sm flex-1">{error}</p>
+          <button
+            onClick={() => { setError(null); fetchMissions(); }}
+            className="px-3 py-1.5 rounded-lg bg-red-500/20 text-red-300 text-xs font-semibold hover:bg-red-500/30 transition-colors"
+          >
+            Retry
+          </button>
+        </div>
+      )}
+
       {/* Title Header */}
       <div className="flex flex-col md:flex-row md:items-center justify-between gap-4">
         <div>

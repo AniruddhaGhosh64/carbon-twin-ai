@@ -140,7 +140,7 @@ export default function Header({ onMenuClick }: HeaderProps) {
             {notificationsOpen && (
               <>
                 {/* Backdrop to capture clicks outside */}
-                <div onClick={() => setNotificationsOpen(false)} className="fixed inset-0 z-30" />
+                <div onClick={() => setNotificationsOpen(false)} className="fixed inset-0 z-30" aria-hidden="true" />
                 <div className="absolute right-0 top-12 mt-2 w-80 z-40 rounded-lg bg-glass border border-glass p-4 shadow-lg text-left animate-fade-in">
                   <div className="flex items-center justify-between border-b border-glass pb-2.5 mb-3">
                     <span className="text-label-caps text-on-surface">Notifications</span>
@@ -214,7 +214,7 @@ export default function Header({ onMenuClick }: HeaderProps) {
             {profileOpen && (
               <>
                 {/* Backdrop to capture clicks outside */}
-                <div onClick={() => setProfileOpen(false)} className="fixed inset-0 z-30" />
+                <div onClick={() => setProfileOpen(false)} className="fixed inset-0 z-30" aria-hidden="true" />
                 <div className="absolute right-0 top-12 mt-2 w-60 z-40 rounded-lg bg-glass border border-glass p-2.5 shadow-lg text-left animate-fade-in">
                   
                   {/* Dropdown Header user details */}
@@ -267,7 +267,7 @@ export default function Header({ onMenuClick }: HeaderProps) {
       {settingsOpen && (
         <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/60 backdrop-blur-sm p-4 animate-fade-in">
           {/* Backdrop for click outside */}
-          <div onClick={() => setSettingsOpen(false)} className="fixed inset-0 z-30" />
+          <div onClick={() => setSettingsOpen(false)} className="fixed inset-0 z-30" aria-hidden="true" />
           
           {/* Modal Container */}
           <div 

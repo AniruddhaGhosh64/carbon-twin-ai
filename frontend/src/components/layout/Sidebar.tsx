@@ -135,6 +135,7 @@ export default function Sidebar({ isOpen, onClose }: SidebarProps) {
             <div className="relative group/btn w-full">
               <button 
                 disabled
+                aria-disabled="true"
                 className="w-full py-2 px-3 rounded-md bg-primary text-on-primary text-body-sm font-semibold opacity-50 cursor-not-allowed shadow-[0_1px_2px_rgba(0,0,0,0.2),inset_0_1px_0_rgba(255,255,255,0.2)]"
               >
                 Go Premium

@@ -318,13 +318,14 @@ function CarbonTwinPage() {
         {/* Time Horizon Card */}
         <Card className="border border-glass bg-glass p-5 flex flex-col justify-center text-left">
           <span className="text-[10px] text-on-surface-variant font-bold uppercase tracking-wider block mb-2">Time Horizon</span>
-          <div className="flex items-center bg-surface-container rounded-lg p-1 border border-glass w-full">
+          <div role="tablist" aria-label="Projection Time Horizon" className="flex items-center bg-surface-container rounded-lg p-1 border border-glass w-full">
             {([1, 5, 10] as const).map((h) => (
               <button
                 key={h}
+                role="tab"
+                aria-selected={timeHorizon === h}
                 onClick={() => setTimeHorizon(h)}
                 aria-label={`Select ${h}-year simulation projection time horizon`}
-                aria-pressed={timeHorizon === h}
                 className={`flex-1 py-1 text-body-xs font-semibold rounded-md transition-all focus-visible:ring-2 focus-visible:ring-primary focus-visible:ring-offset-2 focus:outline-none ${
                   timeHorizon === h 
                     ? "bg-secondary text-on-secondary shadow-sm" 
@@ -547,13 +548,15 @@ function CarbonTwinPage() {
             </CardDescription>
           </div>
           {/* Tab switcher */}
-          <div className="flex bg-surface-container rounded-lg p-1 border border-glass self-start">
+          <div role="tablist" aria-label="Twin Profile Insights" className="flex bg-surface-container rounded-lg p-1 border border-glass self-start">
             {(["current", "future", "potential"] as const).map((tab) => (
               <button
                 key={tab}
+                id={`tab-profile-${tab}`}
+                role="tab"
+                aria-selected={activeProfileTab === tab}
+                aria-controls={`panel-profile-${tab}`}
                 onClick={() => setActiveProfileTab(tab)}
-                aria-label={`Show ${tab} twin profile insights`}
-                aria-pressed={activeProfileTab === tab}
                 className={`px-3 py-1.5 text-body-xs font-semibold rounded-md transition-all uppercase tracking-wider focus-visible:ring-2 focus-visible:ring-primary focus-visible:ring-offset-2 focus:outline-none ${
                   activeProfileTab === tab 
                     ? "bg-primary text-on-primary shadow-sm" 
@@ -574,11 +577,17 @@ function CarbonTwinPage() {
             twinData.potential_profile;
 
           if (!profile) return (
-            <p className="text-body-xs text-on-surface-variant italic py-4">Profile data not yet generated.</p>
+            <p id={`panel-profile-${activeProfileTab}`} role="tabpanel" aria-labelledby={`tab-profile-${activeProfileTab}`} className="text-body-xs text-on-surface-variant italic py-4 outline-none">Profile data not yet generated.</p>
           );
 
           return (
-            <div className="space-y-4 pt-2">
+            <div 
+              id={`panel-profile-${activeProfileTab}`}
+              role="tabpanel"
+              aria-labelledby={`tab-profile-${activeProfileTab}`}
+              className="space-y-4 pt-2 outline-none"
+              tabIndex={0}
+            >
               <div className="flex items-center gap-3">
                 <span className="text-body-xs font-bold text-on-surface-variant uppercase tracking-wider">Active Archetype:</span>
                 <span className="rounded-full bg-primary/10 border border-primary/20 px-3 py-1 text-xs font-extrabold text-primary shadow-sm">
@@ -741,11 +750,13 @@ function CarbonTwinPage() {
           <span className="text-[11px] text-on-surface-variant font-bold uppercase tracking-wider">Optimized Operating Mode</span>
           <p className="text-body-xs text-on-surface-variant">Switch between standard AI configurations and your customized levers.</p>
         </div>
-        <div className="flex items-center bg-surface-container rounded-lg p-1 border border-glass w-full sm:w-auto">
+        <div role="tablist" aria-label="Optimized Operating Mode" className="flex items-center bg-surface-container rounded-lg p-1 border border-glass w-full sm:w-auto">
           <button
+            id="tab-mode-ai"
+            role="tab"
+            aria-selected={twinMode === "ai"}
+            aria-controls="panel-recommendations"
             onClick={handleSetAiMode}
-            aria-label="Set AI Balanced Twin Mode"
-            aria-pressed={twinMode === "ai"}
             className={`flex-1 sm:flex-none px-4 py-2 text-body-xs font-semibold rounded-md transition-all focus-visible:ring-2 focus-visible:ring-primary focus-visible:ring-offset-2 focus:outline-none ${
               twinMode === "ai" 
                 ? "bg-primary text-on-primary shadow-sm" 
@@ -755,9 +766,11 @@ function CarbonTwinPage() {
             AI Balanced Twin
           </button>
           <button
+            id="tab-mode-custom"
+            role="tab"
+            aria-selected={twinMode === "custom"}
+            aria-controls="panel-recommendations"
             onClick={() => setTwinMode("custom")}
-            aria-label="Set Custom Levers Mode"
-            aria-pressed={twinMode === "custom"}
             className={`flex-1 sm:flex-none px-4 py-2 text-body-xs font-semibold rounded-md transition-all focus-visible:ring-2 focus-visible:ring-primary focus-visible:ring-offset-2 focus:outline-none ${
               twinMode === "custom" 
                 ? "bg-primary text-on-primary shadow-sm" 
@@ -770,7 +783,7 @@ function CarbonTwinPage() {
       </Card>
 
       {/* 5. RECOMMENDATIONS PANEL (Optimization Levers) */}
-      <Card className="border border-glass bg-glass text-left">
+      <Card id="panel-recommendations" role="tabpanel" aria-labelledby={twinMode === "ai" ? "tab-mode-ai" : "tab-mode-custom"} className="border border-glass bg-glass text-left outline-none">
         <CardHeader className="pb-3 flex flex-col sm:flex-row sm:items-center sm:justify-between gap-2">
           <div>
             <CardTitle className="text-headline-md font-bold flex items-center gap-2">
