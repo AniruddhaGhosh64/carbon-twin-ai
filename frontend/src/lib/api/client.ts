@@ -12,8 +12,11 @@ export interface RequestOptions extends RequestInit {
 export async function request<T>(path: string, options: RequestOptions = {}): Promise<T> {
   const { timeout = 8000, retries = 2, userId, ...rest } = options;
 
-  // Resolve active API Base URL
-  const API_BASE_URL = process.env.NEXT_PUBLIC_API_URL || "http://127.0.0.1:8000";
+  // Resolve active API Base URL. On client-side (browser), use relative URLs so requests are proxied via Next.js rewrites.
+  // On server-side, use the direct API URL.
+  const API_BASE_URL = typeof window !== "undefined"
+    ? ""
+    : (process.env.NEXT_PUBLIC_API_URL || "http://127.0.0.1:8000");
   const cleanPath = path.startsWith("/") ? path : `/${path}`;
   const url = `${API_BASE_URL}${cleanPath}`;
 

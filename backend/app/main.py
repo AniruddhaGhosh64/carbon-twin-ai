@@ -10,8 +10,15 @@ app = FastAPI(
 )
 
 # Allow CORS for Next.js frontend
-origins = [settings.FRONTEND_URL]
-if "localhost" not in settings.FRONTEND_URL and "127.0.0.1" not in settings.FRONTEND_URL:
+origins = []
+if settings.FRONTEND_URL:
+    for url in settings.FRONTEND_URL.split(","):
+        url_clean = url.strip().rstrip("/")
+        if url_clean:
+            origins.append(url_clean)
+
+# Ensure localhost is allowed for local dev
+if not any("localhost" in o or "127.0.0.1" in o for o in origins):
     origins.extend(["http://localhost:3000", "http://127.0.0.1:3000"])
 
 app.add_middleware(
