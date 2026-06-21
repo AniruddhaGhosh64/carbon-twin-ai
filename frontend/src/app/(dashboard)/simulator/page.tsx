@@ -509,25 +509,23 @@ function SimulatorPage() {
         </div>
       </div>
 
-      {/* Error Banner */}
       {error && (
-        <div className="flex items-center gap-3 p-4 rounded-xl border border-red-500/30 bg-red-500/10 text-red-300" role="alert">
-          <AlertTriangle className="h-5 w-5 flex-shrink-0" />
-          <p className="text-sm flex-1">{error}</p>
+        <div className="flex items-center gap-3 p-4 rounded-xl border border-error/20 bg-error-container/10 text-error-container text-sm">
+          <AlertTriangle className="h-5 w-5 shrink-0 text-error animate-bounce" />
+          <div className="flex-1 text-left">
+            <span className="font-semibold block text-on-surface">Simulation Error</span>
+            <span className="text-xs text-on-surface-variant">{error}</span>
+          </div>
           <button
-            onClick={() => { setError(null); fetchSimulation(); }}
-            className="px-3 py-1.5 rounded-lg bg-red-500/20 text-red-300 text-xs font-semibold hover:bg-red-500/30 transition-colors"
+            onClick={() => {
+              setError(null);
+              fetchSimulation();
+              fetchScenarios();
+            }}
+            className="px-3 py-1.5 rounded-lg bg-error text-on-error font-semibold hover:bg-error/90 transition-all text-xs cursor-pointer"
           >
             Retry
           </button>
-        </div>
-      )}
-
-      {/* Loading Overlay */}
-      {loading && (
-        <div className="flex items-center gap-2 text-sm text-on-surface-variant animate-pulse" aria-live="polite">
-          <div className="h-4 w-4 border-2 border-primary border-t-transparent rounded-full animate-spin" />
-          Calculating impact...
         </div>
       )}
 
