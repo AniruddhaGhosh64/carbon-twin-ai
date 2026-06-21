@@ -1,5 +1,7 @@
 from app.repositories.base_repository import BaseRepository
-from datetime import datetime
+from datetime import datetime, timezone
+from typing import List, Dict, Any, cast
+from google.cloud.firestore import DocumentSnapshot
 
 class SimulatorRepository(BaseRepository):
     def __init__(self):
@@ -14,17 +16,21 @@ class SimulatorRepository(BaseRepository):
                 "id": doc_id,
                 "user_id": user_id,
                 **scenario_dict,
-                "saved_at": datetime.utcnow().isoformat()
+                "saved_at": datetime.now(timezone.utc).isoformat().replace("+00:00", "Z")
             }
             doc_ref.set(data)
             return data
         except Exception as e:
             self._handle_error("create", e)
 
-    def list_scenarios(self, user_id: str) -> list[dict]:
+    def list_scenarios(self, user_id: str) -> List[Dict[str, Any]]:
         try:
             query = self.collection.where("user_id", "==", user_id).stream()
-            docs = [doc.to_dict() for doc in query]
+            docs = []
+            for doc in query:
+                d = doc.to_dict()
+                if d is not None:
+                    docs.append(d)
             docs.sort(key=lambda x: x.get("saved_at", ""), reverse=True)
             return docs
         except Exception as e:
@@ -33,10 +39,10 @@ class SimulatorRepository(BaseRepository):
     def delete_scenario(self, user_id: str, scenario_id: str) -> bool:
         try:
             doc_ref = self.collection.document(scenario_id)
-            doc = doc_ref.get()
+            doc = cast(DocumentSnapshot, doc_ref.get())
             if doc.exists:
                 doc_data = doc.to_dict()
-                if doc_data.get("user_id") == user_id:
+                if doc_data is not None and doc_data.get("user_id") == user_id:
                     doc_ref.delete()
                     return True
             return False

@@ -156,7 +156,7 @@ class SimulatorService:
                 "vegan": 350.0
             }
         }
-        if baseline_diet in diet_savings_table and dt in diet_savings_table[baseline_diet]:
+        if baseline_diet is not None and baseline_diet in diet_savings_table and dt in diet_savings_table[baseline_diet]:
             money_saved_usd += diet_savings_table[baseline_diet][dt]
 
         if dt == "balanced":
@@ -217,8 +217,8 @@ class SimulatorService:
         if levers.reduce_deliveries_percentage > 0:
             food_deliv = assessment.shopping.food_deliveries_per_week
             pkg_deliv = assessment.shopping.package_deliveries_per_week
-            sim_assessment.shopping.food_deliveries_per_week = food_deliv * (1.0 - levers.reduce_deliveries_percentage / 100.0)
-            sim_assessment.shopping.package_deliveries_per_week = pkg_deliv * (1.0 - levers.reduce_deliveries_percentage / 100.0)
+            sim_assessment.shopping.food_deliveries_per_week = int(round(food_deliv * (1.0 - levers.reduce_deliveries_percentage / 100.0)))
+            sim_assessment.shopping.package_deliveries_per_week = int(round(pkg_deliv * (1.0 - levers.reduce_deliveries_percentage / 100.0)))
             saved_deliv = (food_deliv + pkg_deliv) * (levers.reduce_deliveries_percentage / 100.0)
             money_saved_usd += saved_deliv * 52 * 3.50
 

@@ -2,7 +2,10 @@ from fastapi import APIRouter, Header, Depends
 from app.schemas.recommendations import RecommendationResponse
 from app.services.recommendation_service import RecommendationService
 from app.repositories.assessment_repository import AssessmentRepository
-from app.schemas.assessment import AssessmentCreateRequest, TransportationSchema, HomeEnergySchema, FoodHabitsSchema, ShoppingSchema
+from app.schemas.assessment import (
+    AssessmentCreateRequest, TransportationSchema, HomeEnergySchema, 
+    FoodHabitsSchema, ShoppingSchema, CommuteMethod, VehicleType, FoodHabit
+)
 from app.core.security import rate_limiter
 
 router = APIRouter(prefix="/api/v1/dashboard", tags=["Recommendations"], dependencies=[Depends(rate_limiter(60))])
@@ -13,8 +16,8 @@ def get_latest_assessment_or_default(user_id: str) -> AssessmentCreateRequest:
     if not assessment_data:
         return AssessmentCreateRequest(
             transportation=TransportationSchema(
-                commute_method="car",
-                vehicle_type="gasoline",
+                commute_method=CommuteMethod.CAR,
+                vehicle_type=VehicleType.GASOLINE,
                 weekly_distance_km=250.0,
                 annual_flights=2
             ),
@@ -23,7 +26,7 @@ def get_latest_assessment_or_default(user_id: str) -> AssessmentCreateRequest:
                 ac_usage_hours_per_day=5.0,
                 renewable_energy_percentage=10.0
             ),
-            food_habits=FoodHabitsSchema(diet_type="mixed"),
+            food_habits=FoodHabitsSchema(diet_type=FoodHabit.MIXED),
             shopping=ShoppingSchema(
                 monthly_purchases_usd=500.0,
                 clothing_purchases_per_month=3,

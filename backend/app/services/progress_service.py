@@ -151,7 +151,8 @@ class ProgressService:
         history = progress_repo.get_history(user_id)
         if history:
             # Re-evaluate footprint for baseline
-            baseline_emissions = history[0].get("emissions_kg", current_data["total_kg"])
+            base_emissions_val = history[0].get("emissions_kg")
+            baseline_emissions = float(base_emissions_val) if base_emissions_val is not None else float(current_data["total_kg"])
             # Distribute based on current breakdown ratio if baseline lacked breakdown
             baseline_breakdown = history[0].get("breakdown")
             if not baseline_breakdown:
@@ -223,8 +224,8 @@ class ProgressService:
             actual = projected * (success_rate / 100.0)
             
             performance_list.append(ActionPerformanceItem(
-                action_id=m.get("action_id"),
-                title=m.get("title"),
+                action_id=str(m.get("action_id") or ""),
+                title=str(m.get("title") or ""),
                 projected_savings_kg=round(projected, 2),
                 actual_savings_kg=round(actual, 2),
                 success_rate=round(success_rate, 2)

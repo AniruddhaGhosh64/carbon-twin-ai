@@ -102,6 +102,7 @@ def test_assessment_repository():
     mock_doc2.to_dict.return_value = {"id": "ass2", "created_at": "2026-06-21T20:00:00"}
     mock_coll.where.return_value.stream.return_value = [mock_doc, mock_doc2]
     res = repo.get_latest_assessment("user123")
+    assert res is not None
     assert res["id"] == "ass2"
 
     # get_latest_assessment not found
@@ -140,6 +141,7 @@ def test_carbon_repository():
     mock_doc2.to_dict.return_value = {"id": "calc2", "calculated_at": "2026-06-21T20:00:00"}
     mock_coll.where.return_value.stream.return_value = [mock_doc, mock_doc2]
     res = repo.get_latest_calculation("user123")
+    assert res is not None
     assert res["id"] == "calc2"
 
     # get_latest_calculation not found
@@ -364,6 +366,7 @@ def test_twin_repository():
     mock_doc2.to_dict.return_value = {"id": "twin2", "generated_at": "2026-06-21T20:00:00"}
     mock_coll.where.return_value.stream.return_value = [mock_doc, mock_doc2]
     res = repo.get_latest_twin("user123")
+    assert res is not None
     assert res["id"] == "twin2"
 
     # get_latest_twin not found

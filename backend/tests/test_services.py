@@ -6,7 +6,8 @@ from fastapi import HTTPException
 from app.schemas.assessment import (
     AssessmentCreateRequest, CommuteMethod, VehicleType, FoodHabit,
     SolarSetupTier, WeeklyOverride, HomeEnergySchema, FoodHabitsSchema,
-    ShoppingSchema, TransportationSchema, MealRecordSchema, FoodItemSchema, FoodCategory
+    ShoppingSchema, TransportationSchema, MealRecordSchema, FoodItemSchema, FoodCategory,
+    ClothingItemsSchema, ElectronicsItemsSchema
 )
 from app.schemas.simulator import SimulatorLevers
 from app.schemas.eco_actions import MissionConfig, MissionCheckIn
@@ -48,8 +49,8 @@ def get_base_test_assessment():
             ]
         ),
         shopping=ShoppingSchema(
-            clothing_items={"shirts": 1, "pants": 1, "outerwear": 0, "shoes": 1},
-            electronics_items={"phones": 1, "laptops": 0, "tvs": 0, "accessories": 2},
+            clothing_items=ClothingItemsSchema(shirts=1, pants=1, outerwear=0, shoes=1),
+            electronics_items=ElectronicsItemsSchema(phones=1, laptops=0, tvs=0, accessories=2),
             food_deliveries_per_week=4,
             package_deliveries_per_week=2,
             large_purchases=[]

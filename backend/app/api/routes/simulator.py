@@ -3,7 +3,10 @@ from app.schemas.simulator import SimulatorRequest, SimulatorResponse, ScenarioS
 from app.services.simulator_service import SimulatorService
 from app.repositories.assessment_repository import AssessmentRepository
 from app.repositories.simulator_repository import SimulatorRepository
-from app.schemas.assessment import AssessmentCreateRequest, TransportationSchema, HomeEnergySchema, FoodHabitsSchema, ShoppingSchema
+from app.schemas.assessment import (
+    AssessmentCreateRequest, TransportationSchema, HomeEnergySchema, 
+    FoodHabitsSchema, ShoppingSchema, CommuteMethod, VehicleType, FoodHabit
+)
 from app.core.security import rate_limiter
 
 router = APIRouter(prefix="/api/v1/simulator", tags=["Simulator"], dependencies=[Depends(rate_limiter(60))])
@@ -16,8 +19,8 @@ def get_latest_assessment_or_default(user_id: str) -> AssessmentCreateRequest:
         # Return a sensible default assessment if the user hasn't completed one yet
         return AssessmentCreateRequest(
             transportation=TransportationSchema(
-                commute_method="car",
-                vehicle_type="gasoline",
+                commute_method=CommuteMethod.CAR,
+                vehicle_type=VehicleType.GASOLINE,
                 weekly_distance_km=250.0,
                 annual_flights=2
             ),
@@ -26,7 +29,7 @@ def get_latest_assessment_or_default(user_id: str) -> AssessmentCreateRequest:
                 ac_usage_hours_per_day=5.0,
                 renewable_energy_percentage=10.0
             ),
-            food_habits=FoodHabitsSchema(diet_type="mixed"),
+            food_habits=FoodHabitsSchema(diet_type=FoodHabit.MIXED),
             shopping=ShoppingSchema(
                 monthly_purchases_usd=500.0,
                 clothing_purchases_per_month=3,

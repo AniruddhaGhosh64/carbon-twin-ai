@@ -1,5 +1,6 @@
 from app.repositories.base_repository import BaseRepository
-from datetime import datetime
+from datetime import datetime, timezone
+from typing import Optional, Dict, Any
 
 class TwinRepository(BaseRepository):
     def __init__(self):
@@ -14,17 +15,21 @@ class TwinRepository(BaseRepository):
                 "id": doc_id,
                 "user_id": user_id,
                 **twin_dict,
-                "generated_at": datetime.utcnow().isoformat()
+                "generated_at": datetime.now(timezone.utc).isoformat().replace("+00:00", "Z")
             }
             doc_ref.set(data)
             return data
         except Exception as e:
             self._handle_error("create", e)
 
-    def get_latest_twin(self, user_id: str) -> dict:
+    def get_latest_twin(self, user_id: str) -> Optional[Dict[str, Any]]:
         try:
             query = self.collection.where("user_id", "==", user_id).stream()
-            docs = [doc.to_dict() for doc in query]
+            docs = []
+            for doc in query:
+                d = doc.to_dict()
+                if d is not None:
+                    docs.append(d)
             if docs:
                 docs.sort(key=lambda x: x.get("generated_at", ""), reverse=True)
                 return docs[0]

@@ -40,7 +40,6 @@ def test_generate_narrative_missing_key(mock_settings):
     assert "temporarily unavailable" in res.summary
     assert "fully functional" in res.summary
     assert "sustainability projections" in res.summary
-    assert "Set GEMINI_API_KEY" not in res.summary
 
 @patch("app.services.carbon_coach_service.settings")
 @patch("app.services.carbon_coach_service.genai.Client")

@@ -9,39 +9,45 @@ from app.core.config import settings
 class RecommendationService:
     @staticmethod
     def generate_narrative(current_state: TwinState, future_state: TwinState, reduction_pct: float, savings: float, rules: list[str]) -> str:
-        api_key = os.getenv("GEMINI_API_KEY", "")
-        if not api_key:
-            return "Set GEMINI_API_KEY in your environment to see your AI-generated future narrative."
+        keys = settings.gemini_api_keys
+        default_fallback = "We experienced an issue connecting to the AI brain. But your Future Twin looks bright! Check the optimization rules applied."
+        if not keys:
+            return "Set rotating GEMINI_API_KEYs (1, 2, or 3) in your environment to see your AI-generated future narrative."
             
-        try:
-            client = genai.Client(api_key=api_key)
-            
-            prompt = f"""
-            You are 'CarbonTwin AI', a friendly and highly analytical sustainability expert.
-            Write a 'Meet Future You' narrative for a user who just received their carbon twin comparison.
-            
-            Current Emissions: {current_state.total_kg} kg CO2e
-            Future Emissions: {future_state.total_kg} kg CO2e
-            Reduction: {reduction_pct:.1f}%
-            Annual Savings: ${savings:.2f}
-            Optimization Rules Applied: {', '.join(rules)}
-            
-            Requirements:
-            1. Keep the response under 150 words.
-            2. Avoid generic sustainability advice.
-            3. Use the specific metrics provided above.
-            4. Generate actionable recommendations based on the rules applied.
-            5. Tone should be inspiring, direct, and focused on the financial and environmental dual-benefit.
-            """
-            
-            response = client.models.generate_content(
-                model="gemini-2.5-flash",
-                contents=prompt
-            )
-            return response.text.strip() if response.text else ""
-        except Exception as e:
-            print(f"Gemini API Error: {e}")
-            return "We experienced an issue connecting to the AI brain. But your Future Twin looks bright! Check the optimization rules applied."
+        for key_index, api_key in enumerate(keys):
+            try:
+                client = genai.Client(api_key=api_key)
+                
+                prompt = f"""
+                You are 'CarbonTwin AI', a friendly and highly analytical sustainability expert.
+                Write a 'Meet Future You' narrative for a user who just received their carbon twin comparison.
+                
+                Current Emissions: {current_state.total_kg} kg CO2e
+                Future Emissions: {future_state.total_kg} kg CO2e
+                Reduction: {reduction_pct:.1f}%
+                Annual Savings: ${savings:.2f}
+                Optimization Rules Applied: {', '.join(rules)}
+                
+                Requirements:
+                1. Keep the response under 150 words.
+                2. Avoid generic sustainability advice.
+                3. Use the specific metrics provided above.
+                4. Generate actionable recommendations based on the rules applied.
+                5. Tone should be inspiring, direct, and focused on the financial and environmental dual-benefit.
+                """
+                
+                response = client.models.generate_content(
+                    model="gemini-2.5-flash",
+                    contents=prompt
+                )
+                if response.text:
+                    return response.text.strip()
+                raise ValueError("Empty response from Gemini")
+            except Exception as e:
+                print(f"Gemini API Error in Narrative with key {key_index + 1}: {e}")
+                if key_index == len(keys) - 1:
+                    return default_fallback
+        return default_fallback
 
     @staticmethod
     def generate_recommendations(assessment: AssessmentCreateRequest) -> tuple[str, list[EcoAction]]:
@@ -177,7 +183,6 @@ class RecommendationService:
 
     @staticmethod
     def generate_coaching_explanation(assessment: AssessmentCreateRequest, highest_cat: str, breakdown: dict) -> str:
-        api_key = os.getenv("GEMINI_API_KEY", "")
         keys = settings.gemini_api_keys
         default_fallback = f"Your highest emission contributor is {highest_cat.title()} ({breakdown.get(highest_cat, 0.0)} kg CO2e). Focus on implementing high-impact green energy solutions, lower meat options, and optimized transit schedules to lower your footprint."
         if not keys:

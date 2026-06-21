@@ -68,11 +68,25 @@ class EcoActionsService:
             # success probability logic
             prob = 85.0
             if r.id == "use_metro":
-                prob = 75.0 if assessment.transportation.weekly_distance_km < 150 else 60.0
+                weekly_dist = assessment.transportation.weekly_distance_km if (assessment.transportation and assessment.transportation.weekly_distance_km is not None) else 0.0
+                prob = 75.0 if weekly_dist < 150.0 else 60.0
             elif r.id == "cycle_weekly":
                 prob = 80.0
             elif r.id == "reduce_meat":
-                prob = 50.0 if assessment.food_habits.diet_type == FoodHabit.HIGH_MEAT else 75.0
+                prob = 50.0 if (assessment.food_habits and assessment.food_habits.diet_type == FoodHabit.HIGH_MEAT) else 75.0
+
+            # Calculate carbon reduction safely as float
+            carbon_reduction = 300.0
+            try:
+                desc = r.description.lower()
+                if "saving you " in desc:
+                    val = r.description.split("saving you ")[1].split(" ")[0].replace("kg", "").replace(",", "").strip()
+                    carbon_reduction = float(val)
+                elif "emissions by " in desc:
+                    val = r.description.split("emissions by ")[1].split(" ")[0].replace("kg", "").replace(",", "").strip()
+                    carbon_reduction = float(val)
+            except Exception:
+                pass
 
             missions.append(EcoMission(
                 id=f"dashboard_{r.id}",
@@ -82,16 +96,11 @@ class EcoActionsService:
                 description=r.description,
                 source="dashboard",
                 status="suggested",
-                carbon_reduction_kg=float(r.description.split("saving you ")[1].split(" ")[0]) if "saving you " in r.description else (r.description.split("emissions by ")[1].split(" ")[0] if "emissions by " in r.description else "300").replace("kg", "").strip().split(" ")[0].split(".")[0].split(",")[0] if any(x in r.description for x in ["saving you ", "emissions by "]) else 300.0,
+                carbon_reduction_kg=carbon_reduction,
                 money_saved_usd=r.estimated_savings_usd,
                 effort_level=effort,
                 success_probability=prob
             ))
-            # Clean up carbon reduction parse issues if any
-            try:
-                missions[-1].carbon_reduction_kg = float(missions[-1].carbon_reduction_kg)
-            except Exception:
-                missions[-1].carbon_reduction_kg = 250.0
         return missions
 
     @classmethod

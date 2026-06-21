@@ -5,6 +5,14 @@ import api from "@/lib/api/client";
 import logger from "@/lib/logger";
 import { UserResponse } from "@/types/carbon";
 
+// Sanitize placeholder environment variables before NextAuth initializes to prevent runtime crashes (e.g. TypeError: Invalid URL)
+if (process.env.AUTH_URL === "REPLACE_WITH_FRONTEND_URL") {
+  process.env.AUTH_URL = "http://localhost:3000";
+}
+if (process.env.AUTH_SECRET === "REPLACE_WITH_PRODUCTION_SECRET") {
+  process.env.AUTH_SECRET = "default_auth_secret_key_for_development_purposes_only";
+}
+
 export const { handlers, signIn, signOut, auth } = NextAuth({
   providers: [
     CredentialsProvider({
@@ -101,6 +109,7 @@ export const { handlers, signIn, signOut, auth } = NextAuth({
     signIn: "/",
     error: "/",
   },
+  trustHost: true,
   secret: process.env.AUTH_SECRET || (process.env.NODE_ENV === "development" ? "default_auth_secret_key_for_development_purposes_only" : undefined),
 });
 

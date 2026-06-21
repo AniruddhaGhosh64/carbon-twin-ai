@@ -82,8 +82,7 @@ class TransportationSchema(BaseModel):
     weekly_distance_km: Optional[float] = None
     annual_flights: Optional[int] = None
 
-    @model_validator(mode='after')
-    def compute_legacy_fields(self):
+    def compute_legacy_fields(self) -> 'TransportationSchema':
         # Calculate weekly distance across all ground modes
         car_dist = 0.0
         transit_dist = 0.0
@@ -121,6 +120,10 @@ class TransportationSchema(BaseModel):
         
         return self
 
+    @model_validator(mode='after')
+    def validate_legacy_fields(self) -> 'TransportationSchema':
+        return self.compute_legacy_fields()
+
 class SolarSetupTier(str, Enum):
     NONE = "none"
     SMALL = "small"
@@ -156,8 +159,7 @@ class HomeEnergySchema(BaseModel):
     ac_usage_hours_per_day: Optional[float] = None
     renewable_energy_percentage: Optional[float] = None
 
-    @model_validator(mode='after')
-    def compute_legacy_fields(self):
+    def compute_legacy_fields(self) -> 'HomeEnergySchema':
         bill_kwh = self.monthly_electricity_bill_inr / 8.0
         
         appliance_kwh = sum(
@@ -192,6 +194,10 @@ class HomeEnergySchema(BaseModel):
             
         return self
 
+    @model_validator(mode='after')
+    def validate_legacy_fields(self) -> 'HomeEnergySchema':
+        return self.compute_legacy_fields()
+
 class FoodCategory(str, Enum):
     BEEF = "beef"
     POULTRY = "poultry"
@@ -225,8 +231,7 @@ class FoodHabitsSchema(BaseModel):
     # Legacy field
     diet_type: Optional[FoodHabit] = None
 
-    @model_validator(mode='after')
-    def compute_legacy_fields(self):
+    def compute_legacy_fields(self) -> 'FoodHabitsSchema':
         total_weight = 0.0
         meat_weight = 0.0
         animal_weight = 0.0
@@ -260,6 +265,10 @@ class FoodHabitsSchema(BaseModel):
             self.diet_type = FoodHabit.VEGAN
             
         return self
+
+    @model_validator(mode='after')
+    def validate_legacy_fields(self) -> 'FoodHabitsSchema':
+        return self.compute_legacy_fields()
 
 class ClothingItemsSchema(BaseModel):
     shirts: int = Field(ge=0, default=0)
@@ -305,8 +314,7 @@ class ShoppingSchema(BaseModel):
     clothing_purchases_per_month: Optional[int] = None
     electronics_purchases_per_year: Optional[int] = None
 
-    @model_validator(mode='after')
-    def compute_legacy_fields(self):
+    def compute_legacy_fields(self) -> 'ShoppingSchema':
         self.clothing_purchases_per_month = (
             self.clothing_items.shirts + 
             self.clothing_items.pants + 
@@ -343,6 +351,10 @@ class ShoppingSchema(BaseModel):
         
         self.monthly_purchases_usd = clothing_spend + electronics_spend + delivery_spend + large_spend
         return self
+
+    @model_validator(mode='after')
+    def validate_legacy_fields(self) -> 'ShoppingSchema':
+        return self.compute_legacy_fields()
 
 class AssessmentCreateRequest(BaseModel):
     transportation: TransportationSchema

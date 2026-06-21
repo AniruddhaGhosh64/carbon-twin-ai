@@ -1,6 +1,7 @@
 from app.repositories.base_repository import BaseRepository
 from datetime import datetime, timezone
-from typing import List, Dict, Optional, Any
+from typing import List, Dict, Optional, Any, cast
+from google.cloud.firestore import DocumentSnapshot
 
 class CommitmentsRepository(BaseRepository):
     def __init__(self):
@@ -51,9 +52,10 @@ class CommitmentsRepository(BaseRepository):
     def get_mission(self, user_id: str, mission_id: str) -> Optional[Dict[str, Any]]:
         try:
             doc_ref = self.missions_collection.document(mission_id)
-            doc = doc_ref.get()
+            doc = cast(DocumentSnapshot, doc_ref.get())
             if doc.exists:
-                return doc.to_dict()
+                d = doc.to_dict()
+                return d if d is not None else None
             return None
         except Exception as e:
             self._handle_error("get_mission", e)
@@ -71,8 +73,8 @@ class CommitmentsRepository(BaseRepository):
     def delete_mission(self, user_id: str, mission_id: str) -> bool:
         try:
             doc_ref = self.missions_collection.document(mission_id)
-            # Use get() on reference
-            if doc_ref.get().exists:
+            doc = cast(DocumentSnapshot, doc_ref.get())
+            if doc.exists:
                 doc_ref.delete()
                 return True
             return False

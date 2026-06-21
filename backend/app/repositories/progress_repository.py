@@ -1,5 +1,6 @@
 from app.repositories.base_repository import BaseRepository
-from datetime import datetime
+from datetime import datetime, timezone
+from typing import List, Dict, Any
 
 class ProgressRepository(BaseRepository):
     def __init__(self):
@@ -16,17 +17,21 @@ class ProgressRepository(BaseRepository):
                 "date": date,
                 "carbon_score": score,
                 "emissions_kg": emissions_kg,
-                "updated_at": datetime.utcnow().isoformat()
+                "updated_at": datetime.now(timezone.utc).isoformat().replace("+00:00", "Z")
             }
             doc_ref.set(data)
             return data
         except Exception as e:
             self._handle_error("add_history_entry", e)
 
-    def get_history(self, user_id: str) -> list[dict]:
+    def get_history(self, user_id: str) -> List[Dict[str, Any]]:
         try:
             query = self.collection.where("user_id", "==", user_id).stream()
-            docs = [doc.to_dict() for doc in query]
+            docs = []
+            for doc in query:
+                d = doc.to_dict()
+                if d is not None:
+                    docs.append(d)
             docs.sort(key=lambda x: x.get("date", ""))
             return docs
         except Exception as e:
