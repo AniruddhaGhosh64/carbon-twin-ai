@@ -4,7 +4,7 @@ import { useState } from "react";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/Card";
 import { Slider } from "@/components/ui/Slider";
 import { cn } from "@/lib/utils";
-import { Home, Users, Sun, Plus, Trash2, Shield, Zap, Sparkles } from "lucide-react";
+import { Home, Users, Sun, Plus, Trash2, Zap } from "lucide-react";
 
 export interface ApplianceItem {
   id: string;
@@ -178,6 +178,7 @@ export default function HomeEnergyModule({
                     step={1}
                     value={householdSize}
                     onValueChange={(val) => setHouseholdSize(val)}
+                    aria-label="Household Size"
                   />
                 </div>
               </div>
@@ -187,11 +188,12 @@ export default function HomeEnergyModule({
                 <div className="flex items-center justify-between">
                   <div className="flex items-center gap-2.5">
                     <Zap className="h-4.5 w-4.5 text-primary" />
-                    <span className="text-sm font-semibold text-on-surface">Monthly Electricity Bill (INR)</span>
+                    <label htmlFor="monthlyElectricityBill" className="text-sm font-semibold text-on-surface cursor-pointer">Monthly Electricity Bill (INR)</label>
                   </div>
                   <div className="relative flex items-center">
                     <span className="absolute left-3 text-xs text-on-surface-variant font-bold">₹</span>
                     <input
+                      id="monthlyElectricityBill"
                       type="number"
                       min="0"
                       value={monthlyBillInr || ""}
@@ -208,6 +210,7 @@ export default function HomeEnergyModule({
                     step={100}
                     value={monthlyBillInr}
                     onValueChange={(val) => setMonthlyBillInr(val)}
+                    aria-label="Monthly Electricity Bill (INR)"
                   />
                   <div className="flex justify-between text-[10px] text-on-surface-variant mt-1.5">
                     <span>₹0</span>
@@ -279,6 +282,7 @@ export default function HomeEnergyModule({
                             type="button"
                             onClick={() => handleUpdateAppliance(app.id, "quantity", Math.max(0, app.quantity - 1))}
                             className="h-7 w-7 flex items-center justify-center text-on-surface-variant hover:text-on-surface hover:bg-surface-container rounded"
+                            aria-label={`Decrease quantity of ${app.name}`}
                           >
                             -
                           </button>
@@ -287,6 +291,7 @@ export default function HomeEnergyModule({
                             type="button"
                             onClick={() => handleUpdateAppliance(app.id, "quantity", app.quantity + 1)}
                             className="h-7 w-7 flex items-center justify-center text-on-surface-variant hover:text-on-surface hover:bg-surface-container rounded"
+                            aria-label={`Increase quantity of ${app.name}`}
                           >
                             +
                           </button>
@@ -305,6 +310,7 @@ export default function HomeEnergyModule({
                             step={0.5}
                             value={app.daily_usage_hours}
                             onValueChange={(val) => handleUpdateAppliance(app.id, "daily_usage_hours", val)}
+                            aria-label={`Daily usage hours for ${app.name}`}
                           />
                         </div>
                       )}
@@ -324,8 +330,9 @@ export default function HomeEnergyModule({
                 </span>
                 <div className="grid grid-cols-1 sm:grid-cols-2 md:grid-cols-4 gap-4">
                   <div className="flex flex-col space-y-1.5">
-                    <label className="text-[10px] font-semibold text-on-surface-variant uppercase">Appliance Name</label>
+                    <label htmlFor={`customName-${activeTab}`} className="text-[10px] font-semibold text-on-surface-variant uppercase">Appliance Name</label>
                     <input
+                      id={`customName-${activeTab}`}
                       type="text"
                       value={customName}
                       onChange={(e) => setCustomName(e.target.value)}
@@ -334,8 +341,9 @@ export default function HomeEnergyModule({
                     />
                   </div>
                   <div className="flex flex-col space-y-1.5">
-                    <label className="text-[10px] font-semibold text-on-surface-variant uppercase">Power (Watts)</label>
+                    <label htmlFor={`customPower-${activeTab}`} className="text-[10px] font-semibold text-on-surface-variant uppercase">Power (Watts)</label>
                     <input
+                      id={`customPower-${activeTab}`}
                       type="number"
                       min="1"
                       value={customPower || ""}
@@ -345,8 +353,9 @@ export default function HomeEnergyModule({
                     />
                   </div>
                   <div className="flex flex-col space-y-1.5">
-                    <label className="text-[10px] font-semibold text-on-surface-variant uppercase">Quantity</label>
+                    <label htmlFor={`customQty-${activeTab}`} className="text-[10px] font-semibold text-on-surface-variant uppercase">Quantity</label>
                     <input
+                      id={`customQty-${activeTab}`}
                       type="number"
                       min="1"
                       value={customQty || ""}
@@ -356,8 +365,9 @@ export default function HomeEnergyModule({
                     />
                   </div>
                   <div className="flex flex-col space-y-1.5">
-                    <label className="text-[10px] font-semibold text-on-surface-variant uppercase">Usage (Hrs/Day)</label>
+                    <label htmlFor={`customHours-${activeTab}`} className="text-[10px] font-semibold text-on-surface-variant uppercase">Usage (Hrs/Day)</label>
                     <input
+                      id={`customHours-${activeTab}`}
                       type="number"
                       min="0"
                       max="24"

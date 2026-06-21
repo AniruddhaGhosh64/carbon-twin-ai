@@ -4,8 +4,10 @@ import { useState, useEffect } from "react";
 import { useRouter } from "next/navigation";
 import { useCarbon } from "@/context/CarbonContext";
 import { 
-  Car, Train, Bike, Footprints, Check, ArrowRight, Home, Cookie, ShoppingBag, Plane, Leaf, Plus, Trash2, AlertTriangle
+  Car, Train, Bike, Footprints, ArrowRight, Home, Cookie, ShoppingBag, Plane, Leaf, Plus, Trash2, AlertTriangle
 } from "lucide-react";
+import logger from "@/lib/logger";
+import ErrorBoundary from "@/components/layout/ErrorBoundary";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/Card";
 import { Slider } from "@/components/ui/Slider";
 import { cn } from "@/lib/utils";
@@ -49,7 +51,7 @@ interface ModuleItem {
   status: "completed" | "active" | "locked";
 }
 
-export default function FootprintPage() {
+function FootprintPage() {
   const router = useRouter();
   const { calculateFootprint, isLoading, error } = useCarbon();
 
@@ -143,7 +145,7 @@ export default function FootprintPage() {
         if (parsed.packageDeliveries !== undefined) setPackageDeliveries(parsed.packageDeliveries);
         if (parsed.largePurchases) setLargePurchases(parsed.largePurchases);
       } catch (e) {
-        console.error("Failed to parse footprint draft", e);
+        logger.error("Failed to parse footprint draft", e);
       }
     }
     
@@ -580,6 +582,7 @@ export default function FootprintPage() {
                                 value={value || ""}
                                 onChange={(e) => updateDaily(day, activeGroundMode, e.target.value)}
                                 placeholder="0"
+                                aria-label={`Distance for ${day}`}
                                 className="w-full bg-surface border border-glass rounded-xl py-2 px-3 text-sm text-on-surface text-center focus:border-primary outline-none transition-all [appearance:textfield] [&::-webkit-outer-spin-button]:appearance-none [&::-webkit-inner-spin-button]:appearance-none"
                               />
                             </div>
@@ -602,6 +605,7 @@ export default function FootprintPage() {
                               type="number" min="0" step="0.1"
                               value={weeklyOverride[m.id] || ""}
                               onChange={(e) => updateWeekly(m.id, e.target.value)}
+                              aria-label={`${m.label} Weekly Distance`}
                               className="w-28 bg-surface border border-glass rounded-xl py-2 pl-4 pr-10 text-sm text-on-surface focus:border-primary outline-none text-right font-semibold"
                               placeholder="0"
                             />
@@ -616,6 +620,7 @@ export default function FootprintPage() {
                             max={1000}
                             value={weeklyOverride[m.id] || 0}
                             onValueChange={(val) => updateWeekly(m.id, val.toString())}
+                            aria-label={`${m.label} Weekly Distance Slider`}
                           />
                         </div>
                       </div>
@@ -851,8 +856,9 @@ export default function FootprintPage() {
                 {/* Flight Form Fields */}
                 <div className="grid grid-cols-1 sm:grid-cols-2 md:grid-cols-4 gap-6 p-6 md:p-8 bg-surface-container/20 border border-glass rounded-2xl">
                   <div className="flex flex-col text-left space-y-1.5">
-                    <label className="text-xs font-semibold text-on-surface-variant uppercase tracking-wider">From Airport</label>
+                    <label htmlFor="flightSource" className="text-xs font-semibold text-on-surface-variant uppercase tracking-wider">From Airport</label>
                     <select 
+                      id="flightSource"
                       value={newFlightSrc}
                       onChange={e => setNewFlightSrc(e.target.value)}
                       className="w-full bg-surface border border-glass rounded-xl p-3 text-sm focus:border-primary outline-none text-on-surface font-medium"
@@ -861,8 +867,9 @@ export default function FootprintPage() {
                     </select>
                   </div>
                   <div className="flex flex-col text-left space-y-1.5">
-                    <label className="text-xs font-semibold text-on-surface-variant uppercase tracking-wider">To Airport</label>
+                    <label htmlFor="flightDest" className="text-xs font-semibold text-on-surface-variant uppercase tracking-wider">To Airport</label>
                     <select 
+                      id="flightDest"
                       value={newFlightDst}
                       onChange={e => setNewFlightDst(e.target.value)}
                       className="w-full bg-surface border border-glass rounded-xl p-3 text-sm focus:border-primary outline-none text-on-surface font-medium"
@@ -871,8 +878,9 @@ export default function FootprintPage() {
                     </select>
                   </div>
                   <div className="flex flex-col text-left space-y-1.5">
-                    <label className="text-xs font-semibold text-on-surface-variant uppercase tracking-wider">Trip Type</label>
+                    <label htmlFor="flightType" className="text-xs font-semibold text-on-surface-variant uppercase tracking-wider">Trip Type</label>
                     <select 
+                      id="flightType"
                       value={newFlightType}
                       onChange={e => setNewFlightType(e.target.value as "one_way" | "round_trip")}
                       className="w-full bg-surface border border-glass rounded-xl p-3 text-sm focus:border-primary outline-none text-on-surface font-medium"
@@ -882,8 +890,9 @@ export default function FootprintPage() {
                     </select>
                   </div>
                   <div className="flex flex-col text-left space-y-1.5">
-                    <label className="text-xs font-semibold text-on-surface-variant uppercase tracking-wider">Flight Date</label>
+                    <label htmlFor="flightDate" className="text-xs font-semibold text-on-surface-variant uppercase tracking-wider">Flight Date</label>
                     <input 
+                      id="flightDate"
                       type="date"
                       value={newFlightDate}
                       onChange={e => setNewFlightDate(e.target.value)}
@@ -1046,5 +1055,13 @@ export default function FootprintPage() {
           </div>
       </div>
     </div>
+  );
+}
+
+export default function WrappedFootprintPage() {
+  return (
+    <ErrorBoundary fallbackName="Footprint Assessment">
+      <FootprintPage />
+    </ErrorBoundary>
   );
 }

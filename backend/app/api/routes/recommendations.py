@@ -49,6 +49,112 @@ def generate_recommendations(x_user_id: str = Header(default="default_user")):
         explanation=explanation
     )
 
+@router.get("/overview")
+def get_dashboard_overview(x_user_id: str = Header(default="default_user")):
+    from app.repositories.carbon_repository import CarbonRepository
+    from app.repositories.twin_repository import TwinRepository
+    from app.repositories.progress_repository import ProgressRepository
+    from app.services.carbon_service import CarbonCalculationService
+    from app.services.progress_service import ProgressService
+    from app.services.twin_service import CarbonTwinService
+    from app.services.eco_service import EcoActionsService
+
+    carbon_repo = CarbonRepository()
+    twin_repo = TwinRepository()
+    progress_repo = ProgressRepository()
+
+    # 1. Fetch latest calculation & assessment
+    assessment_data = assessment_repo.get_latest_assessment(x_user_id)
+    calc_data = carbon_repo.get_latest_calculation(x_user_id)
+
+    # 2. Recommendations
+    recs_data = None
+    if assessment_data:
+        assessment_obj = AssessmentCreateRequest(**assessment_data)
+        highest_cat, recs = RecommendationService.generate_recommendations(assessment_obj)
+        footprint = CarbonCalculationService.calculate_footprint(assessment_obj)
+        explanation = RecommendationService.generate_coaching_explanation(assessment_obj, highest_cat, footprint["breakdown"])
+        recs_data = {
+            "highest_emission_category": highest_cat,
+            "recommendations": [r.model_dump() for r in recs],
+            "explanation": explanation
+        }
+
+    # 3. Carbon Twin
+    twin_data = twin_repo.get_latest_twin(x_user_id)
+    if not twin_data and assessment_data:
+        try:
+            active_missions = EcoActionsService.get_all_missions(x_user_id)["active"]
+            active_rule_ids = [m.action_id for m in active_missions]
+        except Exception:
+            active_rule_ids = []
+        (
+            current_state, future_state, potential_state,
+            current_profile, future_profile, potential_profile,
+            reduction_pct, savings, score_imp, rules, recs
+        ) = CarbonTwinService.generate_twin(AssessmentCreateRequest(**assessment_data), active_rule_ids)
+
+        from app.services.carbon_coach_service import CarbonCoachService
+        narrative = CarbonCoachService.generate_narrative(
+            user_id=x_user_id,
+            current_state=current_state,
+            future_state=future_state,
+            reduction_pct=reduction_pct,
+            savings=savings,
+            rules=rules
+        )
+        twin_data = {
+            "current_state": current_state.model_dump(),
+            "future_state": future_state.model_dump(),
+            "potential_state": potential_state.model_dump(),
+            "current_profile": current_profile.model_dump(),
+            "future_profile": future_profile.model_dump(),
+            "potential_profile": potential_profile.model_dump(),
+            "reduction_percentage": reduction_pct,
+            "money_saved_usd": savings,
+            "carbon_score_improvement": score_imp,
+            "applied_rules": rules,
+            "recommendations": [r.model_dump() for r in recs],
+            "narrative": narrative if isinstance(narrative, str) else narrative.model_dump()
+        }
+        twin_repo.create_twin(x_user_id, twin_data)
+
+    # 4. Progress history & stats
+    progress_history = progress_repo.get_history(x_user_id)
+    if not progress_history:
+        import datetime
+        today = datetime.date.today().isoformat()
+        default_entry = progress_repo.add_history_entry(x_user_id, today, 70, 4500.0)
+        progress_history = [default_entry]
+
+    progress_overview = None
+    progress_performance = None
+    progress_achievements = None
+    try:
+        progress_overview = ProgressService.get_progress_overview(x_user_id)
+        categories = ProgressService.get_category_performance(x_user_id)
+        actions = ProgressService.get_action_performance(x_user_id)
+        progress_performance = {
+            "categories": categories,
+            "actions": [a.model_dump() for a in actions]
+        }
+        progress_achievements = ProgressService.get_achievements(x_user_id)
+    except Exception as e:
+        print(f"Failed to fetch progress overview components: {e}")
+
+    return {
+        "assessment": assessment_data,
+        "carbonData": calc_data,
+        "recommendationData": recs_data,
+        "twinData": twin_data,
+        "progress": {
+            "history": progress_history,
+            "overview": progress_overview.model_dump() if progress_overview else None,
+            "performance": progress_performance,
+            "achievements": progress_achievements.model_dump() if progress_achievements else None
+        }
+    }
+
 from app.schemas.recommendations import ToggleCommitmentRequest, CommitSimulationRequest
 from app.repositories.commitments_repository import CommitmentsRepository
 

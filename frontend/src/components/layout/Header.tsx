@@ -1,6 +1,7 @@
 "use client";
 
-import { useState } from "react";
+import { useState, useEffect, useRef } from "react";
+import Image from "next/image";
 import { useSession, signOut } from "next-auth/react";
 import { Bell, Search, Settings, Menu, X, User, Sliders, LogOut } from "lucide-react";
 import { Switch } from "@/components/ui/Switch";
@@ -28,6 +29,63 @@ export default function Header({ onMenuClick }: HeaderProps) {
   const [settingsNotifications, setSettingsNotifications] = useState(true);
   const [settingsPrivacy, setSettingsPrivacy] = useState(false);
   const [selectedTheme, setSelectedTheme] = useState("carbon-green");
+
+  const settingsBtnRef = useRef<HTMLButtonElement | null>(null);
+  const notificationsBtnRef = useRef<HTMLButtonElement | null>(null);
+  const profileBtnRef = useRef<HTMLButtonElement | null>(null);
+  const settingsModalRef = useRef<HTMLDivElement | null>(null);
+
+  useEffect(() => {
+    const handleKeyDown = (e: KeyboardEvent) => {
+      if (e.key === "Escape") {
+        if (settingsOpen) {
+          setSettingsOpen(false);
+          settingsBtnRef.current?.focus();
+        } else if (notificationsOpen) {
+          setNotificationsOpen(false);
+          notificationsBtnRef.current?.focus();
+        } else if (profileOpen) {
+          setProfileOpen(false);
+          profileBtnRef.current?.focus();
+        }
+      }
+    };
+    window.addEventListener("keydown", handleKeyDown);
+    return () => window.removeEventListener("keydown", handleKeyDown);
+  }, [settingsOpen, notificationsOpen, profileOpen]);
+
+  useEffect(() => {
+    if (settingsOpen && settingsModalRef.current) {
+      const focusable = settingsModalRef.current.querySelectorAll(
+        'button, select, input, [tabindex]:not([tabindex="-1"])'
+      );
+      if (focusable.length > 0) {
+        (focusable[0] as HTMLElement).focus();
+      }
+    }
+  }, [settingsOpen]);
+
+  const handleSettingsKeyDown = (e: React.KeyboardEvent) => {
+    if (e.key === "Tab" && settingsModalRef.current) {
+      const focusable = settingsModalRef.current.querySelectorAll(
+        'button, select, input, [tabindex]:not([tabindex="-1"])'
+      );
+      if (focusable.length === 0) return;
+      const first = focusable[0] as HTMLElement;
+      const last = focusable[focusable.length - 1] as HTMLElement;
+      if (e.shiftKey) {
+        if (document.activeElement === first) {
+          last.focus();
+          e.preventDefault();
+        }
+      } else {
+        if (document.activeElement === last) {
+          first.focus();
+          e.preventDefault();
+        }
+      }
+    }
+  };
 
   const mockNotifications = [
     { id: 1, title: "Footprint baseline calculated successfully.", time: "2 hours ago" },
@@ -64,12 +122,15 @@ export default function Header({ onMenuClick }: HeaderProps) {
           {/* Notification Bell */}
           <div className="relative">
             <button 
+              ref={notificationsBtnRef}
               onClick={() => {
                 setNotificationsOpen(!notificationsOpen);
                 setProfileOpen(false);
               }}
               className="relative flex h-10 w-10 items-center justify-center rounded-lg border border-glass bg-surface-container-low text-on-surface-variant hover:text-on-surface hover:bg-surface-container-high transition-all"
               aria-label="Notifications"
+              aria-expanded={notificationsOpen}
+              aria-haspopup="true"
             >
               <Bell className="h-5 w-5" />
               <span className="absolute top-2 right-2 h-2 w-2 rounded-full bg-primary animate-pulse" />
@@ -106,6 +167,7 @@ export default function Header({ onMenuClick }: HeaderProps) {
 
           {/* Settings Button */}
           <button 
+            ref={settingsBtnRef}
             onClick={() => {
               setSettingsOpen(true);
               setNotificationsOpen(false);
@@ -123,15 +185,19 @@ export default function Header({ onMenuClick }: HeaderProps) {
           {/* User Profile Info & Dropdown Trigger */}
           <div className="relative">
             <button 
+              ref={profileBtnRef}
               onClick={() => {
                 setProfileOpen(!profileOpen);
                 setNotificationsOpen(false);
               }}
               className="flex items-center gap-3 outline-none group text-left"
+              aria-label="User profile menu"
+              aria-expanded={profileOpen}
+              aria-haspopup="true"
             >
               <div className="relative h-10 w-10 overflow-hidden rounded-full border border-primary/20 bg-surface-container-high group-hover:border-primary/45 transition-colors">
                 {session?.user?.image ? (
-                  <img src={session.user.image} alt={userName} className="h-full w-full object-cover" />
+                  <Image src={session.user.image} alt={userName} width={40} height={40} className="h-full w-full object-cover" unoptimized />
                 ) : (
                   <div className="flex h-full w-full items-center justify-center bg-primary-container text-body-sm font-semibold text-on-primary-container">
                     {userInitials}
@@ -204,12 +270,19 @@ export default function Header({ onMenuClick }: HeaderProps) {
           <div onClick={() => setSettingsOpen(false)} className="fixed inset-0 z-30" />
           
           {/* Modal Container */}
-          <div className="bg-glass border border-glass rounded-lg shadow-lg p-6 max-w-md w-full relative z-40 text-left flex flex-col gap-6 animate-scale-in">
+          <div 
+            ref={settingsModalRef}
+            onKeyDown={handleSettingsKeyDown}
+            role="dialog"
+            aria-modal="true"
+            aria-labelledby="settingsTitle"
+            className="bg-glass border border-glass rounded-lg shadow-lg p-6 max-w-md w-full relative z-40 text-left flex flex-col gap-6 animate-scale-in"
+          >
             {/* Header */}
             <div className="flex items-center justify-between border-b border-glass pb-3.5">
               <div className="flex items-center gap-2 text-primary">
                 <Settings className="h-5 w-5" />
-                <span className="text-title-md font-bold text-on-surface">Settings</span>
+                <span id="settingsTitle" className="text-title-md font-bold text-on-surface">Settings</span>
               </div>
               <button 
                 onClick={() => setSettingsOpen(false)}
@@ -225,9 +298,10 @@ export default function Header({ onMenuClick }: HeaderProps) {
               
               {/* Field 1: Theme Selection */}
               <div className="space-y-2">
-                <label className="text-label-caps text-on-surface-variant">Theme</label>
+                <label htmlFor="themeSelect" className="text-label-caps text-on-surface-variant">Theme</label>
                 <div className="relative">
                   <select
+                    id="themeSelect"
                     value={selectedTheme}
                     onChange={(e) => setSelectedTheme(e.target.value)}
                     className="h-11 w-full rounded-lg bg-[#121212] border border-glass px-4 text-body-sm text-on-surface outline-none focus:border-primary/50 transition-all appearance-none cursor-pointer"
@@ -252,6 +326,7 @@ export default function Header({ onMenuClick }: HeaderProps) {
                 <Switch 
                   checked={settingsNotifications} 
                   onCheckedChange={setSettingsNotifications} 
+                  aria-label="Enable Notifications"
                 />
               </div>
 
@@ -264,6 +339,7 @@ export default function Header({ onMenuClick }: HeaderProps) {
                 <Switch 
                   checked={settingsPrivacy} 
                   onCheckedChange={setSettingsPrivacy} 
+                  aria-label="Data Privacy Mode"
                 />
               </div>
 

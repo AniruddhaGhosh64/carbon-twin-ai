@@ -11,13 +11,15 @@ import {
   Sparkles, 
   TrendingUp, 
   DollarSign, 
-  ChevronRight,
-  TrendingDown
+  ChevronRight
 } from "lucide-react";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/Card";
-import { useCarbon, TwinNarrative } from "@/context/CarbonContext";
+import { useCarbon } from "@/context/CarbonContext";
+import { TwinNarrative } from "@/types/carbon";
+import logger from "@/lib/logger";
+import ErrorBoundary from "@/components/layout/ErrorBoundary";
 
-export default function CarbonTwinPage() {
+function CarbonTwinPage() {
   const { 
     twinData, 
     latestAssessment, 
@@ -72,7 +74,7 @@ export default function CarbonTwinPage() {
     try {
       await updateTwinCustomization(newAccepted);
     } catch (err) {
-      console.error("Failed to update custom twin:", err);
+      logger.error("Failed to update custom twin", err);
     } finally {
       setIsUpdating(false);
     }
@@ -85,7 +87,7 @@ export default function CarbonTwinPage() {
     try {
       await updateTwinCustomization([]);
     } catch (err) {
-      console.error("Failed to reset to AI Twin:", err);
+      logger.error("Failed to reset to AI Twin", err);
     } finally {
       setIsUpdating(false);
     }
@@ -96,7 +98,7 @@ export default function CarbonTwinPage() {
     try {
       await fetchLatestCalculation(true);
     } catch (err) {
-      console.error(err);
+      logger.error("Failed to refresh Twin", err);
     } finally {
       setIsUpdating(false);
     }
@@ -174,10 +176,6 @@ export default function CarbonTwinPage() {
     );
   }
 
-  // Absolute Metrics Calculations
-  const currentTons = (twinData.current_state.total_kg / 1000).toFixed(1);
-  const futureTons = (twinData.future_state.total_kg / 1000).toFixed(1);
-  
   // Horizon Scaling Factors
   const emissionsSavedAnnualKg = Math.max(0, twinData.current_state.total_kg - twinData.future_state.total_kg);
   const emissionsSavedTonsHorizon = ((emissionsSavedAnnualKg * timeHorizon) / 1000).toFixed(1);
@@ -189,19 +187,6 @@ export default function CarbonTwinPage() {
   const circumference = 2 * Math.PI * radius;
   const strokeDashoffset = circumference - (reductionPct / 100) * circumference;
 
-  // Largest Contributor Evaluation
-  const getLargestContributor = (state: typeof twinData.current_state) => {
-    const cats = {
-      Transportation: state.transportation_kg,
-      Energy: state.energy_kg,
-      Food: state.food_kg,
-      Shopping: state.shopping_kg
-    };
-    return Object.entries(cats).reduce((a, b) => a[1] > b[1] ? a : b)[0];
-  };
-
-  const currentLargest = getLargestContributor(twinData.current_state);
-  const futureLargest = getLargestContributor(twinData.future_state);
 
   // Parse structured narrative vs fallback string
   const isNarrativeObject = twinData && typeof twinData.narrative === "object" && twinData.narrative !== null;
@@ -914,5 +899,13 @@ export default function CarbonTwinPage() {
         </CardContent>
       </Card>
     </div>
+  );
+}
+
+export default function WrappedCarbonTwinPage() {
+  return (
+    <ErrorBoundary fallbackName="Carbon Twin Hub">
+      <CarbonTwinPage />
+    </ErrorBoundary>
   );
 }

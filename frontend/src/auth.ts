@@ -1,7 +1,9 @@
 import NextAuth from "next-auth";
 import CredentialsProvider from "next-auth/providers/credentials";
 import GoogleProvider from "next-auth/providers/google";
-import { getApiUrl } from "@/lib/api";
+import api from "@/lib/api/client";
+import logger from "@/lib/logger";
+import { UserResponse } from "@/types/carbon";
 
 export const { handlers, signIn, signOut, auth } = NextAuth({
   providers: [
@@ -17,21 +19,11 @@ export const { handlers, signIn, signOut, auth } = NextAuth({
         }
 
         try {
-          const res = await fetch(getApiUrl("/api/v1/auth/login"), {
-            method: "POST",
-            body: JSON.stringify({
-              email: credentials.email,
-              password: credentials.password,
-            }),
-            headers: { "Content-Type": "application/json" },
+          const user = await api.post<UserResponse>("/api/v1/auth/login", {
+            email: credentials.email,
+            password: credentials.password,
           });
 
-          if (!res.ok) {
-            const errData = await res.json().catch(() => ({}));
-            throw new Error(errData.detail || "Authentication failed");
-          }
-
-          const user = await res.json();
           if (user && user.id) {
             return {
               id: user.id,
@@ -44,7 +36,7 @@ export const { handlers, signIn, signOut, auth } = NextAuth({
           return null;
         } catch (error: unknown) {
           const errMsg = error instanceof Error ? error.message : "Failed to log in.";
-          console.error("Authorize error:", errMsg);
+          logger.error("Authorize error", error);
           throw new Error(errMsg);
         }
       }
@@ -62,44 +54,45 @@ export const { handlers, signIn, signOut, auth } = NextAuth({
     async signIn({ user, account }) {
       if (account?.provider === "google") {
         try {
-          const res = await fetch(getApiUrl("/api/v1/auth/google-login"), {
-            method: "POST",
-            body: JSON.stringify({
-              email: user.email,
-              name: user.name || "Google User",
-              image: user.image || null,
-              google_id: account.providerAccountId,
-            }),
-            headers: { "Content-Type": "application/json" },
+          const dbUser = await api.post<UserResponse>("/api/v1/auth/google-login", {
+            email: user.email || "",
+            name: user.name || "Google User",
+            image: user.image || null,
+            google_id: account.providerAccountId,
           });
 
-          if (res.ok) {
-            const dbUser = await res.json();
+          if (dbUser && dbUser.id) {
             // Attach the DB user details to the token user object
             user.id = dbUser.id;
-            (user as unknown as Record<string, unknown>).providers = dbUser.providers;
+            user.providers = dbUser.providers;
             return true;
           }
-          console.error("Failed to sync Google user with backend");
+          logger.error("Failed to sync Google user with backend: No user returned");
           return false;
         } catch (error) {
-          console.error("Error in signIn callback:", error);
+          logger.error("Error in signIn callback", error);
           return false;
         }
       }
       return true;
     },
-    async jwt({ token, user, account }) {
+    async jwt({ token, user }) {
       if (user) {
         token.id = user.id;
-        token.providers = (user as unknown as Record<string, unknown>).providers;
+        token.name = user.name;
+        token.email = user.email;
+        token.picture = user.image;
+        token.providers = user.providers;
       }
       return token;
     },
     async session({ session, token }) {
       if (session.user) {
         session.user.id = token.id as string;
-        (session.user as unknown as Record<string, unknown>).providers = token.providers as string[];
+        session.user.name = token.name as string;
+        session.user.email = token.email as string;
+        session.user.image = token.picture as string;
+        session.user.providers = token.providers as string[];
       }
       return session;
     },
@@ -108,5 +101,6 @@ export const { handlers, signIn, signOut, auth } = NextAuth({
     signIn: "/",
     error: "/",
   },
-  secret: process.env.AUTH_SECRET,
+  secret: process.env.AUTH_SECRET || (process.env.NODE_ENV === "development" ? "default_auth_secret_key_for_development_purposes_only" : undefined),
 });
+

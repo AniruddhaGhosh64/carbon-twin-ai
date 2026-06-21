@@ -524,13 +524,12 @@ class EcoActionsService:
                 new_items = []
                 meat_portion = 0.0
                 for item in meal.items:
-                    if item.category in [FoodCategory.BEEF, FoodCategory.POULTRY, FoodCategory.FISH] if 'FoodCategory' in globals() else ['beef', 'poultry', 'fish']:
+                    if item.category in [FoodCategory.BEEF, FoodCategory.POULTRY, FoodCategory.FISH]:
                         meat_portion += item.portion_g
                     else:
                         new_items.append(item)
                 # Add plant alternative
                 if meat_portion > 0:
-                    from app.schemas.assessment import FoodItemSchema, FoodCategory
                     new_items.append(FoodItemSchema(
                         id=f"{meal.id}_plant_prot_comp",
                         name="Plant Protein Alternative",

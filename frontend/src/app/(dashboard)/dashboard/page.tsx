@@ -1,6 +1,7 @@
 "use client";
 
-import { useState, useEffect } from "react";
+import { useState, useMemo } from "react";
+import ErrorBoundary from "@/components/layout/ErrorBoundary";
 import Link from "next/link";
 import { 
   ArrowUpRight, 
@@ -20,18 +21,16 @@ import {
   AlertCircle
 } from "lucide-react";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/Card";
-import { 
-  PieChart, 
-  Pie, 
-  Cell, 
-  ResponsiveContainer, 
-  Tooltip 
-} from "recharts";
 import { cn } from "@/lib/utils";
 import { useCarbon } from "@/context/CarbonContext";
+import dynamic from "next/dynamic";
 
-export default function DashboardPage() {
-  const [mounted, setMounted] = useState(false);
+const DashboardPieChart = dynamic(
+  () => import("@/components/charts/DashboardPieChart"),
+  { ssr: false, loading: () => <div className="text-body-sm text-on-surface-variant">Loading Pie Chart...</div> }
+);
+
+function DashboardPage() {
   const [dashboardMode, setDashboardMode] = useState<"executive" | "activity">("executive");
   const [carbonScoreView, setCarbonScoreView] = useState<"lifestyle" | "national">("lifestyle");
   const [timeScope, setTimeScope] = useState<"week" | "month" | "year">("year");
@@ -45,10 +44,132 @@ export default function DashboardPage() {
     isLoading 
   } = useCarbon();
 
-  // Prevent Next.js SSR hydration mismatches with Recharts
-  useEffect(() => {
-    setMounted(true);
-  }, []);
+  // ----------------------------------------------------
+  // Executive Overview Calculations & Scaling
+  // ----------------------------------------------------
+  const totalAnnualKg = carbonData ? carbonData.total_kg : 0;
+  const carbonScore = carbonData ? carbonData.carbon_score : 0;
+
+  // Scale emissions values based on scope
+  const scaleEmissions = useMemo(() => (kgValue: number) => {
+    let scaled = kgValue;
+    if (timeScope === "month") scaled = kgValue / 12;
+    if (timeScope === "week") scaled = kgValue / 52;
+    return scaled;
+  }, [timeScope]);
+
+  const formatEmissions = useMemo(() => (kgValue: number) => {
+    const scaled = scaleEmissions(kgValue);
+    if (scaled >= 1000) {
+      return `${(scaled / 1000).toFixed(2)} T`;
+    }
+    return `${Math.round(scaled).toLocaleString()} kg`;
+  }, [scaleEmissions]);
+
+  const getScopeLabel = () => {
+    if (timeScope === "week") return "Week";
+    if (timeScope === "month") return "Month";
+    return "Year";
+  };
+
+  // Sector Breakdown data points (scaled)
+  const breakdownData = useMemo(() => {
+    if (!carbonData) return [];
+    return [
+      { name: "Transport", value: scaleEmissions(carbonData.breakdown.transportation), color: "#95d4b3", raw: carbonData.breakdown.transportation },
+      { name: "Food", value: scaleEmissions(carbonData.breakdown.food), color: "#a5d0b9", raw: carbonData.breakdown.food },
+      { name: "Energy", value: scaleEmissions(carbonData.breakdown.energy), color: "#2D6A4F", raw: carbonData.breakdown.energy },
+      { name: "Shopping", value: scaleEmissions(carbonData.breakdown.shopping), color: "#29513f", raw: carbonData.breakdown.shopping },
+    ];
+  }, [scaleEmissions, carbonData]);
+
+  const totalEmissionsInScope = scaleEmissions(totalAnnualKg);
+  const getPct = useMemo(() => (valInScope: number) => {
+    return totalEmissionsInScope > 0 ? `${((valInScope / totalEmissionsInScope) * 100).toFixed(1)}%` : "0%";
+  }, [totalEmissionsInScope]);
+
+  // Potential Reduction & Money Saved (scaled)
+  const baseEmissionsTwin = twinData ? twinData.current_state.total_kg : totalAnnualKg;
+  const futureEmissionsTwin = twinData ? twinData.future_state.total_kg : totalAnnualKg;
+  const reductionPercentage = twinData ? twinData.reduction_percentage : 0;
+  const annualSavedKg = Math.max(0, baseEmissionsTwin - futureEmissionsTwin);
+  const savedEmissionsText = formatEmissions(annualSavedKg);
+
+  const annualSavingsUsd = twinData ? twinData.money_saved_usd : 0;
+  const scaledSavingsUsd = timeScope === "year" ? annualSavingsUsd : timeScope === "month" ? annualSavingsUsd / 12 : annualSavingsUsd / 52;
+
+  // Biggest Contributor Calculation
+  const { biggestCategory, biggestPercentage, biggestRecommendation } = useMemo(() => {
+    if (!carbonData) return { biggestCategory: "none", biggestPercentage: "0", biggestRecommendation: "" };
+    let category = "transportation";
+    let val = 0;
+    Object.entries(carbonData.breakdown).forEach(([k, v]) => {
+      if (v > val) {
+        val = v;
+        category = k;
+      }
+    });
+
+    const pct = totalAnnualKg > 0 ? ((val / totalAnnualKg) * 100).toFixed(0) : "0";
+
+    const recommendations = {
+      transportation: "Opt for public transit or active cycling for commutes, and log flights carefully.",
+      energy: "Increase solar setup tier and configure efficient thermostat daily hours.",
+      food: "Focus on switching high-impact meats (like beef) to plant proteins or grains.",
+      shopping: "Reduce monthly discretionary retail spend and aggregate delivery packages."
+    };
+
+    const rec = recommendationData?.recommendations?.find(
+      r => r.category === category
+    )?.action_title || recommendations[category as keyof typeof recommendations] || "Consider optimizing this category to lower your footprint.";
+
+    return { biggestCategory: category, biggestPercentage: pct, biggestRecommendation: rec };
+  }, [carbonData, totalAnnualKg, recommendationData?.recommendations]);
+
+  // National Comparison data (National Average is 6.2 Tons per year)
+  const nationalAverageTonsAnnual = 6.2;
+  const nationalAverageTonsInScope = timeScope === "year" ? nationalAverageTonsAnnual : timeScope === "month" ? nationalAverageTonsAnnual / 12 : nationalAverageTonsAnnual / 52;
+  
+  const userTonsInScope = scaleEmissions(totalAnnualKg) / 1000;
+  const pctDiffFromNational = ((userTonsInScope - nationalAverageTonsInScope) / nationalAverageTonsInScope) * 100;
+  const isLowerThanNational = pctDiffFromNational < 0;
+
+  // ----------------------------------------------------
+  // Activity Center Data Resolving (Raw logs)
+  // ----------------------------------------------------
+  const recentFlights = latestAssessment?.transportation?.flight_records || [];
+  
+  // Flatten logged food items
+  const recentFoodItems = useMemo(() => {
+    const items: Array<{ id: string; name: string; portion_g: number; category: string; meal_type: string }> = [];
+    const meals = latestAssessment?.food_habits?.meals || [];
+    meals.forEach(meal => {
+      meal.items.forEach(item => {
+        items.push({
+          id: item.id,
+          name: item.name,
+          portion_g: item.portion_g,
+          category: item.category,
+          meal_type: meal.meal_type
+        });
+      });
+    });
+    return items;
+  }, [latestAssessment?.food_habits?.meals]);
+
+  // Active home energy appliances
+  const activeAppliances = latestAssessment?.home_energy?.appliances?.filter(a => a.quantity > 0) || [];
+
+  // Shopping activities
+  const largePurchases = latestAssessment?.shopping?.large_purchases || [];
+  const clothingCount = latestAssessment?.shopping?.clothing_items 
+    ? Object.values(latestAssessment.shopping.clothing_items).reduce((s, v) => s + v, 0)
+    : 0;
+  const electronicsCount = latestAssessment?.shopping?.electronics_items
+    ? Object.values(latestAssessment.shopping.electronics_items).reduce((s, v) => s + v, 0)
+    : 0;
+  const foodDeliveriesVal = latestAssessment?.shopping?.food_deliveries_per_week || 0;
+  const packageDeliveriesVal = latestAssessment?.shopping?.package_deliveries_per_week || 0;
 
   if (isLoading) {
     return (
@@ -84,122 +205,6 @@ export default function DashboardPage() {
       </div>
     );
   }
-
-  // ----------------------------------------------------
-  // Executive Overview Calculations & Scaling
-  // ----------------------------------------------------
-  const totalAnnualKg = carbonData.total_kg;
-  const carbonScore = carbonData.carbon_score;
-
-  // Scale emissions values based on scope
-  const scaleEmissions = (kgValue: number) => {
-    let scaled = kgValue;
-    if (timeScope === "month") scaled = kgValue / 12;
-    if (timeScope === "week") scaled = kgValue / 52;
-    return scaled;
-  };
-
-  const formatEmissions = (kgValue: number) => {
-    const scaled = scaleEmissions(kgValue);
-    if (scaled >= 1000) {
-      return `${(scaled / 1000).toFixed(2)} T`;
-    }
-    return `${Math.round(scaled).toLocaleString()} kg`;
-  };
-
-  const getScopeLabel = () => {
-    if (timeScope === "week") return "Week";
-    if (timeScope === "month") return "Month";
-    return "Year";
-  };
-
-  // Sector Breakdown data points (scaled)
-  const breakdownData = [
-    { name: "Transport", value: scaleEmissions(carbonData.breakdown.transportation), color: "#95d4b3", raw: carbonData.breakdown.transportation },
-    { name: "Food", value: scaleEmissions(carbonData.breakdown.food), color: "#a5d0b9", raw: carbonData.breakdown.food },
-    { name: "Energy", value: scaleEmissions(carbonData.breakdown.energy), color: "#2D6A4F", raw: carbonData.breakdown.energy },
-    { name: "Shopping", value: scaleEmissions(carbonData.breakdown.shopping), color: "#29513f", raw: carbonData.breakdown.shopping },
-  ];
-
-  const totalEmissionsInScope = scaleEmissions(totalAnnualKg);
-  const getPct = (valInScope: number) => {
-    return totalEmissionsInScope > 0 ? `${((valInScope / totalEmissionsInScope) * 100).toFixed(1)}%` : "0%";
-  };
-
-  // Potential Reduction & Money Saved (scaled)
-  const baseEmissionsTwin = twinData ? twinData.current_state.total_kg : totalAnnualKg;
-  const futureEmissionsTwin = twinData ? twinData.future_state.total_kg : totalAnnualKg;
-  const reductionPercentage = twinData ? twinData.reduction_percentage : 0;
-  const annualSavedKg = Math.max(0, baseEmissionsTwin - futureEmissionsTwin);
-  const savedEmissionsText = formatEmissions(annualSavedKg);
-
-  const annualSavingsUsd = twinData ? twinData.money_saved_usd : 0;
-  const scaledSavingsUsd = timeScope === "year" ? annualSavingsUsd : timeScope === "month" ? annualSavingsUsd / 12 : annualSavingsUsd / 52;
-
-  // Biggest Contributor Calculation
-  let biggestCategory = "transportation";
-  let biggestVal = 0;
-  Object.entries(carbonData.breakdown).forEach(([k, v]) => {
-    if (v > biggestVal) {
-      biggestVal = v;
-      biggestCategory = k;
-    }
-  });
-
-  const biggestPercentage = totalAnnualKg > 0 ? ((biggestVal / totalAnnualKg) * 100).toFixed(0) : "0";
-
-  const contributorRecommendations = {
-    transportation: "Opt for public transit or active cycling for commutes, and log flights carefully.",
-    energy: "Increase solar setup tier and configure efficient thermostat daily hours.",
-    food: "Focus on switching high-impact meats (like beef) to plant proteins or grains.",
-    shopping: "Reduce monthly discretionary retail spend and aggregate delivery packages."
-  };
-
-  const biggestRecommendation = recommendationData?.recommendations?.find(
-    r => r.category === biggestCategory
-  )?.action_title || contributorRecommendations[biggestCategory as keyof typeof contributorRecommendations] || "Consider optimizing this category to lower your footprint.";
-
-  // National Comparison data (National Average is 6.2 Tons per year)
-  const nationalAverageTonsAnnual = 6.2;
-  const nationalAverageTonsInScope = timeScope === "year" ? nationalAverageTonsAnnual : timeScope === "month" ? nationalAverageTonsAnnual / 12 : nationalAverageTonsAnnual / 52;
-  
-  const userTonsInScope = scaleEmissions(totalAnnualKg) / 1000;
-  const pctDiffFromNational = ((userTonsInScope - nationalAverageTonsInScope) / nationalAverageTonsInScope) * 100;
-  const isLowerThanNational = pctDiffFromNational < 0;
-
-  // ----------------------------------------------------
-  // Activity Center Data Resolving (Raw logs)
-  // ----------------------------------------------------
-  const recentFlights = latestAssessment?.transportation?.flight_records || [];
-  const mealsLogged = latestAssessment?.food_habits?.meals || [];
-  
-  // Flatten logged food items
-  const recentFoodItems: Array<{ id: string; name: string; portion_g: number; category: string; meal_type: string }> = [];
-  mealsLogged.forEach(meal => {
-    meal.items.forEach(item => {
-      recentFoodItems.push({
-        id: item.id,
-        name: item.name,
-        portion_g: item.portion_g,
-        category: item.category,
-        meal_type: meal.meal_type
-      });
-    });
-  });
-
-  // Active home energy appliances
-  const activeAppliances = latestAssessment?.home_energy?.appliances?.filter(a => a.quantity > 0) || [];
-
-  // Shopping activities
-  const largePurchases = latestAssessment?.shopping?.large_purchases || [];
-  const clothingCount = latestAssessment?.shopping?.clothing_items 
-    ? Object.values(latestAssessment.shopping.clothing_items).reduce((s, v) => s + v, 0)
-    : 0;
-  const electronicsCount = latestAssessment?.shopping?.electronics_items
-    ? Object.values(latestAssessment.shopping.electronics_items).reduce((s, v) => s + v, 0)
-    : 0;
-  const foodDeliveriesVal = latestAssessment?.shopping?.food_deliveries_per_week || 0;
-  const packageDeliveriesVal = latestAssessment?.shopping?.package_deliveries_per_week || 0;
 
   return (
     <div className="space-y-stack-lg animate-fade-in text-left">
@@ -452,42 +457,7 @@ export default function DashboardPage() {
                 ) : (
                   /* Recharts Pie Chart View */
                   <div className="h-44 w-full flex items-center justify-center animate-fade-in">
-                    {mounted ? (
-                      <ResponsiveContainer width="100%" height="100%">
-                        <PieChart>
-                          <Pie
-                            data={breakdownData}
-                            cx="50%"
-                            cy="50%"
-                            innerRadius={50}
-                            outerRadius={75}
-                            paddingAngle={3}
-                            dataKey="value"
-                          >
-                            {breakdownData.map((entry, index) => (
-                              <Cell key={`cell-${index}`} fill={entry.color} />
-                            ))}
-                          </Pie>
-                          <Tooltip
-                            content={({ active, payload }) => {
-                              if (active && payload && payload.length) {
-                                const data = payload[0].payload;
-                                return (
-                                  <div className="bg-glass rounded-lg p-3 text-left shadow-lg">
-                                    <span className="text-xs font-bold text-on-surface block">{data.name}</span>
-                                    <span className="text-[11px] text-primary block mt-1">Emissions: {formatEmissions(data.raw)}</span>
-                                    <span className="text-[11px] text-on-surface-variant block">Percentage: {getPct(data.value)}</span>
-                                  </div>
-                                );
-                              }
-                              return null;
-                            }}
-                          />
-                        </PieChart>
-                      </ResponsiveContainer>
-                    ) : (
-                      <div className="text-body-sm text-on-surface-variant">Loading Pie Chart...</div>
-                    )}
+                    <DashboardPieChart data={breakdownData} formatEmissions={formatEmissions} getPct={getPct} />
                   </div>
                 )}
 
@@ -838,5 +808,13 @@ export default function DashboardPage() {
       )}
 
     </div>
+  );
+}
+
+export default function WrappedDashboardPage() {
+  return (
+    <ErrorBoundary fallbackName="Dashboard Overview">
+      <DashboardPage />
+    </ErrorBoundary>
   );
 }

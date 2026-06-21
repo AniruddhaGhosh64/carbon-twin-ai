@@ -2,13 +2,10 @@
 
 import React, { useState, useRef, useEffect } from "react";
 import { useSession } from "next-auth/react";
-import { getApiUrl } from "@/lib/api";
 import { MessageSquare, Send, X, Bot, User, Sparkles, Loader2, Trash2 } from "lucide-react";
-
-interface ChatMessage {
-  role: "user" | "model";
-  content: string;
-}
+import { ChatMessage, ChatResponse } from "@/types/carbon";
+import api from "@/lib/api/client";
+import logger from "@/lib/logger";
 
 export default function CarbonCoachAssistant() {
   const { data: session } = useSession();
@@ -21,11 +18,34 @@ export default function CarbonCoachAssistant() {
   const [errorText, setErrorText] = useState<string | null>(null);
 
   const messagesEndRef = useRef<HTMLDivElement | null>(null);
+  const toggleBtnRef = useRef<HTMLButtonElement | null>(null);
+  const inputRef = useRef<HTMLInputElement | null>(null);
 
   // Auto-scroll to the bottom of the chat list
   const scrollToBottom = () => {
     messagesEndRef.current?.scrollIntoView({ behavior: "smooth" });
   };
+
+  // Escape key close handler
+  useEffect(() => {
+    const handleEscape = (e: KeyboardEvent) => {
+      if (e.key === "Escape" && isOpen) {
+        setIsOpen(false);
+        toggleBtnRef.current?.focus();
+      }
+    };
+    window.addEventListener("keydown", handleEscape);
+    return () => window.removeEventListener("keydown", handleEscape);
+  }, [isOpen]);
+
+  // Focus input when chat opens
+  useEffect(() => {
+    if (isOpen) {
+      setTimeout(() => {
+        inputRef.current?.focus();
+      }, 150);
+    }
+  }, [isOpen]);
 
   useEffect(() => {
     if (isOpen) {
@@ -54,29 +74,14 @@ export default function CarbonCoachAssistant() {
         content: msg.content
       }));
 
-      const response = await fetch(getApiUrl("/api/v1/carbontwin/chat"), {
-        method: "POST",
-        headers: {
-          "Content-Type": "application/json",
-          "X-User-Id": userId,
-        },
-        body: JSON.stringify({
-          message: text,
-          history: backendHistory,
-        }),
-      });
+      const data = await api.post<ChatResponse>("/api/v1/carbontwin/chat", {
+        message: text,
+        history: backendHistory,
+      }, { userId });
 
-      if (!response.ok) {
-        if (response.status === 429) {
-          throw new Error("Rate limit exceeded. You can only send 10 messages per minute.");
-        }
-        throw new Error(`Failed to get response: ${response.statusText}`);
-      }
-
-      const data = await response.json();
       setMessages(prev => [...prev, { role: "model", content: data.response }]);
     } catch (err: unknown) {
-      console.error("Carbon Coach Chat Error:", err);
+      logger.error("Carbon Coach Chat Error", err);
       setErrorText(err instanceof Error ? err.message : "Something went wrong. Please try again.");
     } finally {
       setIsSending(false);
@@ -105,6 +110,7 @@ export default function CarbonCoachAssistant() {
     <>
       {/* Floating Toggle Button */}
       <button
+        ref={toggleBtnRef}
         onClick={() => setIsOpen(!isOpen)}
         className="fixed bottom-6 right-6 z-50 bg-primary text-on-primary shadow-glow shadow-lg hover:scale-105 active:scale-95 transition-all duration-300 w-14 h-14 rounded-full flex items-center justify-center cursor-pointer border border-primary/20 hover:shadow-primary/25 focus-visible:ring-2 focus-visible:ring-primary focus-visible:ring-offset-2 focus:outline-none"
         title="Chat with Carbon Coach"
@@ -252,6 +258,7 @@ export default function CarbonCoachAssistant() {
           {/* Input Panel Footer */}
           <div className="p-3 bg-surface-container-high/50 border-t border-outline-variant/20 relative">
             <input
+              ref={inputRef}
               type="text"
               value={inputValue}
               onChange={e => setInputValue(e.target.value)}

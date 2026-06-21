@@ -3,7 +3,7 @@
 import { useState } from "react";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/Card";
 import { cn } from "@/lib/utils";
-import { ShoppingBag, Plus, Trash2, HelpCircle, Package, Truck, ArrowRight } from "lucide-react";
+import { ShoppingBag, Plus, Trash2, Package, Truck } from "lucide-react";
 
 export interface LargePurchase {
   id: string;
@@ -322,6 +322,7 @@ export default function ShoppingTrackingModule({
                       type="button"
                       onClick={() => setPackageDeliveries(Math.max(0, packageDeliveries - 1))}
                       className="h-8 w-8 flex items-center justify-center text-on-surface-variant hover:text-on-surface hover:bg-surface-container rounded"
+                      aria-label="Decrease package deliveries quantity"
                     >
                       -
                     </button>
@@ -330,6 +331,7 @@ export default function ShoppingTrackingModule({
                       type="button"
                       onClick={() => setPackageDeliveries(packageDeliveries + 1)}
                       className="h-8 w-8 flex items-center justify-center text-on-surface-variant hover:text-on-surface hover:bg-surface-container rounded"
+                      aria-label="Increase package deliveries quantity"
                     >
                       +
                     </button>
@@ -349,8 +351,9 @@ export default function ShoppingTrackingModule({
                 </span>
                 <div className="grid grid-cols-1 sm:grid-cols-2 md:grid-cols-4 gap-4">
                   <div className="flex flex-col space-y-1.5">
-                    <label className="text-[10px] font-semibold text-on-surface-variant uppercase">Asset Item Name</label>
+                    <label htmlFor="largeName" className="text-[10px] font-semibold text-on-surface-variant uppercase">Asset Item Name</label>
                     <input
+                      id="largeName"
                       type="text"
                       value={largeName}
                       onChange={(e) => setLargeName(e.target.value)}
@@ -360,8 +363,9 @@ export default function ShoppingTrackingModule({
                   </div>
 
                   <div className="flex flex-col space-y-1.5">
-                    <label className="text-[10px] font-semibold text-on-surface-variant uppercase">Asset Category</label>
+                    <label htmlFor="largeCategory" className="text-[10px] font-semibold text-on-surface-variant uppercase">Asset Category</label>
                     <select
+                      id="largeCategory"
                       value={largeCategory}
                       onChange={(e) => setLargeCategory(e.target.value as LargePurchase["category"])}
                       className="bg-surface border border-glass rounded-xl p-2.5 text-xs text-on-surface outline-none focus:border-primary font-medium"
@@ -375,8 +379,9 @@ export default function ShoppingTrackingModule({
                   </div>
 
                   <div className="flex flex-col space-y-1.5">
-                    <label className="text-[10px] font-semibold text-on-surface-variant uppercase">Cost (USD)</label>
+                    <label htmlFor="largeCost" className="text-[10px] font-semibold text-on-surface-variant uppercase">Cost (USD)</label>
                     <input
+                      id="largeCost"
                       type="number"
                       min="1"
                       value={largeCost || ""}
@@ -387,8 +392,9 @@ export default function ShoppingTrackingModule({
                   </div>
 
                   <div className="flex flex-col space-y-1.5">
-                    <label className="text-[10px] font-semibold text-on-surface-variant uppercase">Purchase Date</label>
+                    <label htmlFor="largeDate" className="text-[10px] font-semibold text-on-surface-variant uppercase">Purchase Date</label>
                     <input
+                      id="largeDate"
                       type="date"
                       value={largeDate}
                       onChange={(e) => setLargeDate(e.target.value)}

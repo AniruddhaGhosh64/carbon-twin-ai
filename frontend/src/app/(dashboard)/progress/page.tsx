@@ -1,165 +1,97 @@
 "use client";
 
-import { useState, useEffect } from "react";
-import { getApiUrl } from "@/lib/api";
+import { useState, useMemo } from "react";
 import { 
   Award, 
   Flame, 
   Leaf, 
   TrendingDown, 
-  Calendar,
-  ShieldCheck,
   Bike,
-  Lock,
   AlertTriangle,
-  Sparkles,
-  TrendingUp,
   DollarSign,
   Info,
   Clock,
-  Compass,
-  Zap,
   Activity,
   CheckCircle,
-  HelpCircle,
   Globe,
   Home
 } from "lucide-react";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/Card";
-import { 
-  AreaChart, 
-  Area, 
-  XAxis, 
-  YAxis, 
-  CartesianGrid, 
-  Tooltip, 
-  ResponsiveContainer,
-  BarChart,
-  Bar,
-  Legend
-} from "recharts";
 import { cn } from "@/lib/utils";
+import { useCarbon } from "@/context/CarbonContext";
+import useSWR from "swr";
+import dynamic from "next/dynamic";
+import api from "@/lib/api/client";
+import ErrorBoundary from "@/components/layout/ErrorBoundary";
+import { 
+  ProgressPoint, 
+  OverviewData, 
+  CategoryPerf, 
+  ActionPerf, 
+  AchievementsData 
+} from "@/types/carbon";
 
-interface ProgressPoint {
-  id: string;
-  user_id: string;
-  date: string;
-  carbon_score: number;
-  emissions_kg: number;
-  updated_at: string;
-}
+const HistoryChart = dynamic(
+  () => import("@/components/charts/HistoryChart"),
+  { ssr: false, loading: () => <div className="h-72 w-full flex items-center justify-center text-body-sm text-on-surface-variant">Loading trend chart...</div> }
+);
 
-interface OverviewData {
-  total_carbon_reduced_kg: number;
-  total_money_saved_usd: number;
-  score_improvement: number;
-  completion_rate: number;
-  comparison: {
-    baseline: number;
-    current: number;
-    target: number;
-    gap_remaining: number;
-  };
-  streaks: {
-    current_eco_streak: number;
-    longest_eco_streak: number;
-    completion_streak: number;
-  };
-}
-
-interface CategoryPerf {
-  projected_savings_kg: number;
-  actual_savings_kg: number;
-  variance_percentage: number;
-}
-
-interface ActionPerf {
-  action_id: string;
-  title: string;
-  projected_savings_kg: number;
-  actual_savings_kg: number;
-  success_rate: number;
-}
-
-interface BadgeProgress {
-  id: string;
-  title: string;
-  description: string;
-  earned: boolean;
-  unlocked_at?: string;
-  progress_percentage: number;
-}
-
-interface AchievementsData {
-  total_xp: number;
-  badges: BadgeProgress[];
-}
-
-export default function ProgressPage() {
-  const [mounted, setMounted] = useState(false);
+function ProgressPage() {
   const [activeTab, setActiveTab] = useState<"overview" | "performance" | "achievements" | "history">("overview");
   const [timeframe, setTimeframe] = useState<"30d" | "90d" | "1y" | "all">("1y");
   
-  // Data states
-  const [overview, setOverview] = useState<OverviewData | null>(null);
-  const [performance, setPerformance] = useState<{ categories: Record<string, CategoryPerf>, actions: ActionPerf[] } | null>(null);
-  const [achievements, setAchievements] = useState<AchievementsData | null>(null);
-  const [history, setHistory] = useState<ProgressPoint[]>([]);
-  
-  const [loading, setLoading] = useState(true);
-  const [error, setError] = useState<string | null>(null);
+  const { progressData } = useCarbon();
 
-  const fetchData = async () => {
-    setLoading(true);
-    setError(null);
-    try {
-      // 1. Fetch Overview
-      const overviewRes = await fetch(getApiUrl("/api/v1/progress/overview"), {
-        headers: { "X-User-Id": "default_user" }
-      });
-      if (!overviewRes.ok) throw new Error("Failed to load progress overview");
-      const overviewJson = await overviewRes.json();
-      setOverview(overviewJson);
+  const fetcher = <T,>(path: string) => api.get<T>(path);
 
-      // 2. Fetch Performance
-      const perfRes = await fetch(getApiUrl(`/api/v1/progress/performance?timeframe=${timeframe}`), {
-        headers: { "X-User-Id": "default_user" }
-      });
-      if (perfRes.ok) {
-        const perfJson = await perfRes.json();
-        setPerformance(perfJson);
-      }
+  const { data: overview, error: overviewError } = useSWR<OverviewData>(
+    "/api/v1/progress/overview",
+    fetcher,
+    { fallbackData: progressData?.overview || undefined, revalidateOnMount: !progressData?.overview }
+  );
 
-      // 3. Fetch Achievements
-      const achRes = await fetch(getApiUrl("/api/v1/progress/achievements"), {
-        headers: { "X-User-Id": "default_user" }
-      });
-      if (achRes.ok) {
-        const achJson = await achRes.json();
-        setAchievements(achJson);
-      }
+  const { data: performance, error: performanceError } = useSWR<{ categories: Record<string, CategoryPerf>, actions: ActionPerf[] }>(
+    `/api/v1/progress/performance?timeframe=${timeframe}`,
+    fetcher,
+    { fallbackData: progressData?.performance || undefined, revalidateOnMount: !progressData?.performance }
+  );
 
-      // 4. Fetch History
-      const historyRes = await fetch(getApiUrl("/api/v1/progress/history"), {
-        headers: { "X-User-Id": "default_user" }
+  const { data: achievements, error: achievementsError } = useSWR<AchievementsData>(
+    "/api/v1/progress/achievements",
+    fetcher,
+    { fallbackData: progressData?.achievements || undefined, revalidateOnMount: !progressData?.achievements }
+  );
+
+  const { data: historyData, error: historyError } = useSWR<{ history: ProgressPoint[] }>(
+    "/api/v1/progress/history",
+    fetcher,
+    { fallbackData: (progressData && progressData.history) ? { history: progressData.history } : undefined, revalidateOnMount: !progressData?.history }
+  );
+
+  const history = useMemo(() => historyData?.history || [], [historyData]);
+  const loading = (!overview && !overviewError) || (!performance && !performanceError) || (!achievements && !achievementsError) || (!historyData && !historyError);
+  const error = overviewError?.message || performanceError?.message || achievementsError?.message || historyError?.message || null;
+
+  // Format history for Chart
+  const chartData = useMemo(() => {
+    const formattedPoints = history.map((h: ProgressPoint) => {
+      const d = new Date(h.date);
+      const formatted = d.toLocaleDateString("en-US", { month: "short", day: "numeric", timeZone: "UTC" });
+      return {
+        date: formatted,
+        Emissions: Math.round(h.emissions_kg)
+      };
+    });
+
+    if (formattedPoints.length === 1 && history.length > 0) {
+      formattedPoints.unshift({
+        date: "Baseline",
+        Emissions: Math.round(history[0].emissions_kg * 1.05)
       });
-      if (historyRes.ok) {
-        const historyJson = await historyRes.json();
-        setHistory(historyJson.history || []);
-      }
-    } catch (err) {
-      console.error(err);
-      const errorMessage = err instanceof Error ? err.message : String(err);
-      setError(errorMessage || "Failed to load Progress timeline.");
-    } finally {
-      setLoading(false);
     }
-  };
 
-  useEffect(() => {
-    fetchData();
-    setMounted(true);
-  }, [timeframe]);
+    return formattedPoints;
+  }, [history]);
 
   if (loading && !overview) {
     return (
@@ -177,23 +109,6 @@ export default function ProgressPage() {
         <span>{error || "No progress history found. Please perform your footprint assessment first."}</span>
       </div>
     );
-  }
-
-  // Format history for Chart
-  const chartData = history.map((h) => {
-    const d = new Date(h.date);
-    const formatted = d.toLocaleDateString("en-US", { month: "short", day: "numeric", timeZone: "UTC" });
-    return {
-      date: formatted,
-      Emissions: Math.round(h.emissions_kg)
-    };
-  });
-
-  if (chartData.length === 1 && history.length > 0) {
-    chartData.unshift({
-      date: "Baseline",
-      Emissions: Math.round(history[0].emissions_kg * 1.05)
-    });
   }
 
   return (
@@ -614,66 +529,9 @@ export default function ProgressPage() {
               </div>
             </CardHeader>
             <CardContent className="pt-6">
-              {mounted ? (
-                <div className="h-72 w-full">
-                  <ResponsiveContainer width="100%" height="100%">
-                    <AreaChart
-                      data={chartData}
-                      margin={{ top: 10, right: 10, left: -20, bottom: 0 }}
-                    >
-                      <defs>
-                        <linearGradient id="colorHistoryEmissions" x1="0" y1="0" x2="0" y2="1">
-                          <stop offset="5%" stopColor="#95d4b3" stopOpacity={0.25} />
-                          <stop offset="95%" stopColor="#95d4b3" stopOpacity={0.0} />
-                        </linearGradient>
-                      </defs>
-                      <CartesianGrid 
-                        stroke="#1B4332" 
-                        strokeOpacity={0.5} 
-                        strokeWidth={0.5} 
-                        vertical={false} 
-                      />
-                      <XAxis 
-                        dataKey="date" 
-                        stroke="#8a938c" 
-                        fontSize={10} 
-                        tickLine={false} 
-                        axisLine={false} 
-                      />
-                      <YAxis 
-                        stroke="#8a938c" 
-                        fontSize={10} 
-                        tickLine={false} 
-                        axisLine={false} 
-                      />
-                      <Tooltip
-                        contentStyle={{
-                          backgroundColor: "#10231c",
-                          border: "1px solid rgba(216, 226, 220, 0.1)",
-                          borderRadius: "8px",
-                          fontSize: "12px",
-                          color: "#d1e8dc",
-                        }}
-                      />
-                      <Area
-                        type="monotone"
-                        dataKey="Emissions"
-                        stroke="#95d4b3"
-                        strokeWidth={2.5}
-                        fillOpacity={1}
-                        fill="url(#colorHistoryEmissions)"
-                        name="Footprint (kg CO2e)"
-                        dot={{ r: 4, fill: "#95d4b3", strokeWidth: 0 }}
-                        activeDot={{ r: 6, fill: "#95d4b3" }}
-                      />
-                    </AreaChart>
-                  </ResponsiveContainer>
-                </div>
-              ) : (
-                <div className="h-72 w-full flex items-center justify-center text-body-sm text-on-surface-variant">
-                  Loading trend chart...
-                </div>
-              )}
+              <div className="h-72 w-full">
+                <HistoryChart data={chartData} />
+              </div>
             </CardContent>
           </Card>
 
@@ -710,5 +568,13 @@ export default function ProgressPage() {
       )}
 
     </div>
+  );
+}
+
+export default function WrappedProgressPage() {
+  return (
+    <ErrorBoundary fallbackName="Progress & Reality Control">
+      <ProgressPage />
+    </ErrorBoundary>
   );
 }

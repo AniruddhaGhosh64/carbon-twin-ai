@@ -1,9 +1,9 @@
 "use client";
 
-import { useState } from "react";
+import { useState, useEffect, useRef } from "react";
 import Link from "next/link";
 import { useSession, signIn } from "next-auth/react";
-import { getApiUrl } from "@/lib/api";
+import api from "@/lib/api/client";
 import { ArrowRight, Leaf, Mail, Lock, User, X, Loader2 } from "lucide-react";
 import { Card, CardContent, CardHeader, CardTitle, CardDescription } from "@/components/ui/Card";
 
@@ -23,6 +23,55 @@ export default function LandingPage() {
   const [confirmPassword, setConfirmPassword] = useState("");
   const [name, setName] = useState("");
 
+  const modalRef = useRef<HTMLDivElement | null>(null);
+  const originBtnRef = useRef<HTMLElement | null>(null);
+
+  // Escape key close handler
+  useEffect(() => {
+    const handleEscape = (e: KeyboardEvent) => {
+      if (e.key === "Escape" && isModalOpen) {
+        setIsModalOpen(false);
+        originBtnRef.current?.focus();
+      }
+    };
+    window.addEventListener("keydown", handleEscape);
+    return () => window.removeEventListener("keydown", handleEscape);
+  }, [isModalOpen]);
+
+  // Focus modal input when opened
+  useEffect(() => {
+    if (isModalOpen && modalRef.current) {
+      const focusable = modalRef.current.querySelectorAll(
+        'button, input, [tabindex]:not([tabindex="-1"])'
+      );
+      if (focusable.length > 0) {
+        (focusable[0] as HTMLElement).focus();
+      }
+    }
+  }, [isModalOpen]);
+
+  const handleModalKeyDown = (e: React.KeyboardEvent) => {
+    if (e.key === "Tab" && modalRef.current) {
+      const focusable = modalRef.current.querySelectorAll(
+        'button, input, [tabindex]:not([tabindex="-1"])'
+      );
+      if (focusable.length === 0) return;
+      const first = focusable[0] as HTMLElement;
+      const last = focusable[focusable.length - 1] as HTMLElement;
+      if (e.shiftKey) {
+        if (document.activeElement === first) {
+          last.focus();
+          e.preventDefault();
+        }
+      } else {
+        if (document.activeElement === last) {
+          first.focus();
+          e.preventDefault();
+        }
+      }
+    }
+  };
+
   const resetForm = () => {
     setEmail("");
     setPassword("");
@@ -32,6 +81,7 @@ export default function LandingPage() {
   };
 
   const openAuth = (tab: "login" | "signup") => {
+    originBtnRef.current = document.activeElement as HTMLElement;
     setAuthTab(tab);
     resetForm();
     setIsModalOpen(true);
@@ -79,16 +129,7 @@ export default function LandingPage() {
     }
 
     try {
-      const res = await fetch(getApiUrl("/api/v1/auth/register"), {
-        method: "POST",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ email, password, name }),
-      });
-
-      if (!res.ok) {
-        const data = await res.json().catch(() => ({}));
-        throw new Error(data.detail || "Registration failed.");
-      }
+      await api.post("/api/v1/auth/register", { email, password, name });
 
       // Auto login after successful registration
       const result = await signIn("credentials", {
@@ -257,12 +298,19 @@ export default function LandingPage() {
           <div onClick={() => !isLoading && setIsModalOpen(false)} className="fixed inset-0 z-30" />
 
           {/* Modal Container */}
-          <div className="bg-glass border border-glass rounded-xl shadow-lg p-6 max-w-md w-full relative z-40 text-left flex flex-col gap-5 animate-scale-in">
+          <div 
+            ref={modalRef}
+            onKeyDown={handleModalKeyDown}
+            role="dialog"
+            aria-modal="true"
+            aria-labelledby="authModalTitle"
+            className="bg-glass border border-glass rounded-xl shadow-lg p-6 max-w-md w-full relative z-40 text-left flex flex-col gap-5 animate-scale-in"
+          >
             {/* Header */}
             <div className="flex items-center justify-between border-b border-glass pb-3">
               <div className="flex items-center gap-2 text-primary">
                 <Leaf className="h-5 w-5" />
-                <span className="text-title-md font-bold text-on-surface">
+                <span id="authModalTitle" className="text-title-md font-bold text-on-surface">
                   {authTab === "login" ? "Welcome Back" : "Join CarbonTwin AI"}
                 </span>
               </div>
@@ -312,10 +360,11 @@ export default function LandingPage() {
             <form onSubmit={authTab === "login" ? handleLogin : handleRegister} className="flex flex-col gap-4">
               {authTab === "signup" && (
                 <div className="space-y-1">
-                  <label className="text-[11px] font-bold text-on-surface-variant uppercase tracking-wider">Full Name</label>
+                  <label htmlFor="fullName" className="text-[11px] font-bold text-on-surface-variant uppercase tracking-wider">Full Name</label>
                   <div className="relative">
                     <User className="absolute top-1/2 left-3.5 h-4 w-4 -translate-y-1/2 text-on-surface-variant" />
                     <input
+                      id="fullName"
                       type="text"
                       required
                       placeholder="Jane Doe"
@@ -329,10 +378,11 @@ export default function LandingPage() {
               )}
 
               <div className="space-y-1">
-                <label className="text-[11px] font-bold text-on-surface-variant uppercase tracking-wider">Email Address</label>
+                <label htmlFor="email" className="text-[11px] font-bold text-on-surface-variant uppercase tracking-wider">Email Address</label>
                 <div className="relative">
                   <Mail className="absolute top-1/2 left-3.5 h-4 w-4 -translate-y-1/2 text-on-surface-variant" />
                   <input
+                    id="email"
                     type="email"
                     required
                     placeholder="you@example.com"
@@ -345,10 +395,11 @@ export default function LandingPage() {
               </div>
 
               <div className="space-y-1">
-                <label className="text-[11px] font-bold text-on-surface-variant uppercase tracking-wider">Password</label>
+                <label htmlFor="password" className="text-[11px] font-bold text-on-surface-variant uppercase tracking-wider">Password</label>
                 <div className="relative">
                   <Lock className="absolute top-1/2 left-3.5 h-4 w-4 -translate-y-1/2 text-on-surface-variant" />
                   <input
+                    id="password"
                     type="password"
                     required
                     minLength={6}
@@ -363,10 +414,11 @@ export default function LandingPage() {
 
               {authTab === "signup" && (
                 <div className="space-y-1">
-                  <label className="text-[11px] font-bold text-on-surface-variant uppercase tracking-wider">Confirm Password</label>
+                  <label htmlFor="confirmPassword" className="text-[11px] font-bold text-on-surface-variant uppercase tracking-wider">Confirm Password</label>
                   <div className="relative">
                     <Lock className="absolute top-1/2 left-3.5 h-4 w-4 -translate-y-1/2 text-on-surface-variant" />
                     <input
+                      id="confirmPassword"
                       type="password"
                       required
                       placeholder="••••••••"

@@ -1,17 +1,14 @@
 "use client";
 
-import { useState, useEffect } from "react";
-import { getApiUrl } from "@/lib/api";
+import { useState, useEffect, useRef } from "react";
 import { 
   Zap, 
   Train, 
-  Check, 
   Leaf, 
   Car, 
   Bike, 
   Home, 
   AlertTriangle,
-  Calendar,
   DollarSign,
   TrendingUp,
   Plus,
@@ -22,37 +19,12 @@ import {
   CheckSquare,
   Activity
 } from "lucide-react";
-import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/Card";
+import { Card } from "@/components/ui/Card";
 import { cn } from "@/lib/utils";
-
-interface MissionConfig {
-  target_frequency: string;
-  start_date: string;
-  end_date: string;
-  notes?: string;
-}
-
-interface MissionCheckIn {
-  date: string;
-  status: string;
-  verified_auto: boolean;
-}
-
-interface EcoMission {
-  id: string;
-  user_id: string;
-  action_id: string;
-  title: string;
-  description: string;
-  source: "dashboard" | "coach" | "twin" | "simulator" | "manual";
-  status: "suggested" | "active" | "completed" | "archived";
-  carbon_reduction_kg: number;
-  money_saved_usd: number;
-  effort_level: "low" | "moderate" | "high" | "transformational";
-  success_probability: number;
-  config?: MissionConfig;
-  check_ins: MissionCheckIn[];
-}
+import api from "@/lib/api/client";
+import logger from "@/lib/logger";
+import ErrorBoundary from "@/components/layout/ErrorBoundary";
+import { EcoMission, MissionsResponse } from "@/types/carbon";
 
 const sourceBadges: Record<string, { label: string, style: string }> = {
   dashboard: { label: "Dashboard", style: "bg-blue-500/10 text-blue-400 border border-blue-500/20" },
@@ -76,14 +48,13 @@ const actionIcons: Record<string, React.ComponentType<{ className?: string }>> =
   reduce_delivery: Activity
 };
 
-export default function EcoActionsPage() {
+function EcoActionsPage() {
   const [missions, setMissions] = useState<{ suggested: EcoMission[], active: EcoMission[], completed: EcoMission[] }>({
     suggested: [],
     active: [],
     completed: []
   });
   const [loading, setLoading] = useState(true);
-  const [error, setError] = useState<string | null>(null);
 
   // Modal states
   const [adoptingMission, setAdoptingMission] = useState<EcoMission | null>(null);
@@ -107,26 +78,129 @@ export default function EcoActionsPage() {
   const [customMoney, setCustomMoney] = useState<number>(30);
   const [customEffort, setCustomEffort] = useState<"low" | "moderate" | "high" | "transformational">("moderate");
 
+  const adoptModalRef = useRef<HTMLDivElement | null>(null);
+  const customModalRef = useRef<HTMLDivElement | null>(null);
+  const limitModalRef = useRef<HTMLDivElement | null>(null);
+  const lastFocusedElementRef = useRef<HTMLElement | null>(null);
+
+  // Escape key handler to close active modals
+  useEffect(() => {
+    const handleEscape = (e: KeyboardEvent) => {
+      if (e.key === "Escape") {
+        if (adoptingMission) {
+          setAdoptingMission(null);
+        } else if (showCustomModal) {
+          setShowCustomModal(false);
+        } else if (showLimitModal) {
+          setShowLimitModal(false);
+        }
+      }
+    };
+    window.addEventListener("keydown", handleEscape);
+    return () => window.removeEventListener("keydown", handleEscape);
+  }, [adoptingMission, showCustomModal, showLimitModal]);
+
+  // Focus trap / restoration effects
+  useEffect(() => {
+    if (adoptingMission) {
+      const activeEl = document.activeElement as HTMLElement;
+      lastFocusedElementRef.current = activeEl;
+      const timer = setTimeout(() => {
+        if (adoptModalRef.current) {
+          const focusable = adoptModalRef.current.querySelectorAll(
+            'button, input, select, textarea, [tabindex]:not([tabindex="-1"])'
+          );
+          if (focusable.length > 0) {
+            (focusable[0] as HTMLElement).focus();
+          }
+        }
+      }, 0);
+      return () => {
+        clearTimeout(timer);
+        lastFocusedElementRef.current?.focus();
+      };
+    }
+  }, [adoptingMission]);
+
+  useEffect(() => {
+    if (showCustomModal) {
+      const activeEl = document.activeElement as HTMLElement;
+      lastFocusedElementRef.current = activeEl;
+      const timer = setTimeout(() => {
+        if (customModalRef.current) {
+          const focusable = customModalRef.current.querySelectorAll(
+            'button, input, select, textarea, [tabindex]:not([tabindex="-1"])'
+          );
+          if (focusable.length > 0) {
+            (focusable[0] as HTMLElement).focus();
+          }
+        }
+      }, 0);
+      return () => {
+        clearTimeout(timer);
+        lastFocusedElementRef.current?.focus();
+      };
+    }
+  }, [showCustomModal]);
+
+  useEffect(() => {
+    if (showLimitModal) {
+      const activeEl = document.activeElement as HTMLElement;
+      lastFocusedElementRef.current = activeEl;
+      const timer = setTimeout(() => {
+        if (limitModalRef.current) {
+          const focusable = limitModalRef.current.querySelectorAll(
+            'button, input, select, textarea, [tabindex]:not([tabindex="-1"])'
+          );
+          if (focusable.length > 0) {
+            (focusable[0] as HTMLElement).focus();
+          }
+        }
+      }, 0);
+      return () => {
+        clearTimeout(timer);
+        lastFocusedElementRef.current?.focus();
+      };
+    }
+  }, [showLimitModal]);
+
+  const handleModalKeyDown = (ref: React.RefObject<HTMLDivElement | null>) => (e: React.KeyboardEvent) => {
+    if (e.key === "Tab" && ref.current) {
+      const focusable = ref.current.querySelectorAll(
+        'button, input, select, textarea, [tabindex]:not([tabindex="-1"])'
+      );
+      if (focusable.length === 0) return;
+      const first = focusable[0] as HTMLElement;
+      const last = focusable[focusable.length - 1] as HTMLElement;
+      if (e.shiftKey) {
+        if (document.activeElement === first) {
+          last.focus();
+          e.preventDefault();
+        }
+      } else {
+        if (document.activeElement === last) {
+          first.focus();
+          e.preventDefault();
+        }
+      }
+    }
+  };
+
+  const handleAdoptModalKeyDown = handleModalKeyDown(adoptModalRef);
+  const handleCustomModalKeyDown = handleModalKeyDown(customModalRef);
+  const handleLimitModalKeyDown = handleModalKeyDown(limitModalRef);
+
   const fetchMissions = async () => {
     setLoading(true);
-    setError(null);
     try {
-      const response = await fetch(getApiUrl("/api/v1/eco-actions/missions"), {
-        headers: { "X-User-Id": "default_user" }
-      });
-      if (!response.ok) {
-        throw new Error("Failed to load eco actions data");
-      }
-      const data = await response.json();
+      const data = await api.get<MissionsResponse>("/api/v1/eco-actions/missions");
       setMissions({
         suggested: data.suggested || [],
         active: data.active || [],
         completed: data.completed || []
       });
     } catch (err) {
-      console.error(err);
-      const errorMessage = err instanceof Error ? err.message : String(err);
-      setError(errorMessage || "Failed to load Eco Actions data.");
+      logger.error("Failed to load eco actions data", err);
     } finally {
       setLoading(false);
     }
@@ -153,39 +227,28 @@ export default function EcoActionsPage() {
   const handleAdoptSubmit = async () => {
     if (!adoptingMission) return;
     try {
-      const response = await fetch(getApiUrl("/api/v1/eco-actions/commit"), {
-        method: "POST",
-        headers: {
-          "Content-Type": "application/json",
-          "X-User-Id": "default_user"
-        },
-        body: JSON.stringify({
-          action_id: adoptingMission.action_id,
-          source: adoptingMission.source,
-          config: {
-            target_frequency: frequency,
-            start_date: startDate,
-            end_date: endDate,
-            notes: notes || undefined
-          }
-        })
-      });
-
-      if (!response.ok) {
-        const errData = await response.json();
-        if (errData.detail === "ACTIVE_LIMIT_EXCEEDED") {
-          setShowLimitModal(true);
-          setAdoptingMission(null);
-          return;
+      await api.post("/api/v1/eco-actions/commit", {
+        action_id: adoptingMission.action_id,
+        source: adoptingMission.source,
+        config: {
+          target_frequency: frequency,
+          start_date: startDate,
+          end_date: endDate,
+          notes: notes || undefined
         }
-        throw new Error(errData.detail || "Failed to commit to mission");
-      }
+      });
 
       setAdoptingMission(null);
       await fetchMissions();
-    } catch (err) {
-      const errorMessage = err instanceof Error ? err.message : String(err);
-      alert(errorMessage || "Failed to commit to action.");
+    } catch (err: unknown) {
+      const errMsg = err instanceof Error ? err.message : "Failed to commit to action.";
+      if (errMsg === "ACTIVE_LIMIT_EXCEEDED") {
+        setShowLimitModal(true);
+        setAdoptingMission(null);
+        return;
+      }
+      alert(errMsg);
+      logger.error("Commit to action failed", err);
     }
   };
 
@@ -196,36 +259,19 @@ export default function EcoActionsPage() {
       return;
     }
     try {
-      const response = await fetch(getApiUrl("/api/v1/eco-actions/custom"), {
-        method: "POST",
-        headers: {
-          "Content-Type": "application/json",
-          "X-User-Id": "default_user"
-        },
-        body: JSON.stringify({
-          title: customTitle,
-          description: customDesc,
-          carbon_reduction_kg: customCarbon,
-          money_saved_usd: customMoney,
-          effort_level: customEffort,
-          config: {
-            target_frequency: frequency,
-            start_date: startDate,
-            end_date: endDate,
-            notes: notes || undefined
-          }
-        })
-      });
-
-      if (!response.ok) {
-        const errData = await response.json();
-        if (errData.detail === "ACTIVE_LIMIT_EXCEEDED") {
-          setShowLimitModal(true);
-          setShowCustomModal(false);
-          return;
+      await api.post("/api/v1/eco-actions/custom", {
+        title: customTitle,
+        description: customDesc,
+        carbon_reduction_kg: customCarbon,
+        money_saved_usd: customMoney,
+        effort_level: customEffort,
+        config: {
+          target_frequency: frequency,
+          start_date: startDate,
+          end_date: endDate,
+          notes: notes || undefined
         }
-        throw new Error(errData.detail || "Failed to create manual mission");
-      }
+      });
 
       setShowCustomModal(false);
       // Reset custom form
@@ -236,38 +282,34 @@ export default function EcoActionsPage() {
       setCustomEffort("moderate");
       
       await fetchMissions();
-    } catch (err) {
-      const errorMessage = err instanceof Error ? err.message : String(err);
-      alert(errorMessage || "Failed to create custom mission.");
+    } catch (err: unknown) {
+      const errMsg = err instanceof Error ? err.message : "Failed to create custom mission.";
+      if (errMsg === "ACTIVE_LIMIT_EXCEEDED") {
+        setShowLimitModal(true);
+        setShowCustomModal(false);
+        return;
+      }
+      alert(errMsg);
+      logger.error("Failed to create custom mission", err);
     }
   };
 
   const handleCancelMission = async (missionId: string) => {
     if (!confirm("Are you sure you want to cancel this mission?")) return;
     try {
-      const response = await fetch(getApiUrl(`/api/v1/eco-actions/cancel/${missionId}`), {
-        method: "POST",
-        headers: { "X-User-Id": "default_user" }
-      });
-      if (response.ok) {
-        await fetchMissions();
-      }
+      await api.post(`/api/v1/eco-actions/cancel/${missionId}`);
+      await fetchMissions();
     } catch (err) {
-      console.error(err);
+      logger.error("Cancel mission failed", err);
     }
   };
 
   const handleCompleteMission = async (missionId: string) => {
     try {
-      const response = await fetch(getApiUrl(`/api/v1/eco-actions/complete/${missionId}`), {
-        method: "POST",
-        headers: { "X-User-Id": "default_user" }
-      });
-      if (response.ok) {
-        await fetchMissions();
-      }
+      await api.post(`/api/v1/eco-actions/complete/${missionId}`);
+      await fetchMissions();
     } catch (err) {
-      console.error(err);
+      logger.error("Complete mission failed", err);
     }
   };
 
@@ -280,19 +322,10 @@ export default function EcoActionsPage() {
         verified_auto: verifiedAuto
       };
 
-      const response = await fetch(getApiUrl(`/api/v1/eco-actions/check-in/${mission.id}`), {
-        method: "POST",
-        headers: {
-          "Content-Type": "application/json",
-          "X-User-Id": "default_user"
-        },
-        body: JSON.stringify(checkInObj)
-      });
-      if (response.ok) {
-        await fetchMissions();
-      }
+      await api.post(`/api/v1/eco-actions/check-in/${mission.id}`, checkInObj);
+      await fetchMissions();
     } catch (err) {
-      console.error(err);
+      logger.error("Check in failed", err);
     }
   };
 
@@ -457,6 +490,7 @@ export default function EcoActionsPage() {
                       <button
                         onClick={() => handleOpenAdopt(m)}
                         className="w-full bg-primary/10 border border-primary/25 hover:bg-primary/20 text-primary py-2 rounded-md text-body-xs font-bold transition-all"
+                        aria-label={`Adopt mission: ${m.title}`}
                       >
                         Adopt Mission
                       </button>
@@ -542,6 +576,7 @@ export default function EcoActionsPage() {
                               ? "bg-emerald-500/10 border-emerald-500/35 text-emerald-400 hover:bg-emerald-500/20" 
                               : "bg-surface-container-highest border-glass text-on-surface-variant hover:bg-surface-container-highest/80"
                           )}
+                          aria-label={`Check in for mission: ${m.title}`}
                         >
                           <CheckSquare className="h-3.5 w-3.5" />
                           {m.check_ins.length > 0 ? "Checked In" : "Check-in"}
@@ -550,6 +585,7 @@ export default function EcoActionsPage() {
                         <button
                           onClick={() => handleCompleteMission(m.id)}
                           className="bg-secondary text-on-secondary hover:bg-secondary/90 px-3 py-1.5 rounded text-[11px] font-bold"
+                          aria-label={`Complete mission: ${m.title}`}
                         >
                           Complete
                         </button>
@@ -558,6 +594,7 @@ export default function EcoActionsPage() {
                           onClick={() => handleCancelMission(m.id)}
                           className="border border-error/20 bg-error/5 text-error-variant hover:bg-error/15 px-2 py-1.5 rounded"
                           title="Cancel Commitment"
+                          aria-label={`Cancel mission: ${m.title}`}
                         >
                           <X className="h-3.5 w-3.5" />
                         </button>
@@ -628,24 +665,33 @@ export default function EcoActionsPage() {
       {/* ADOPT CONFIGURATION MODAL */}
       {adoptingMission && (
         <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/60 backdrop-blur-sm animate-fade-in p-4">
-          <div className="bg-surface-container border border-glass rounded-xl shadow-glow w-full max-w-md overflow-hidden relative text-left">
+          <div 
+            ref={adoptModalRef}
+            onKeyDown={handleAdoptModalKeyDown}
+            role="dialog"
+            aria-modal="true"
+            aria-labelledby="adoptModalTitle"
+            className="bg-surface-container border border-glass rounded-xl shadow-glow w-full max-w-md overflow-hidden relative text-left"
+          >
             <button 
               onClick={() => setAdoptingMission(null)}
               className="absolute top-4 right-4 text-on-surface-variant hover:text-on-surface"
+              aria-label="Close configuration modal"
             >
               <X className="h-5 w-5" />
             </button>
             
             <div className="p-6 space-y-4">
               <div>
-                <h3 className="text-title-lg font-bold text-on-surface">Configure Eco Mission</h3>
+                <h3 id="adoptModalTitle" className="text-title-lg font-bold text-on-surface">Configure Eco Mission</h3>
                 <p className="text-body-xs text-on-surface-variant">Set your milestones for <span className="font-bold text-primary">{adoptingMission.title}</span>.</p>
               </div>
 
               <div className="space-y-3 pt-2">
                 <div className="flex flex-col gap-1">
-                  <label className="text-body-xs font-bold text-on-surface-variant">Target Frequency</label>
+                  <label htmlFor="adopt-frequency" className="text-body-xs font-bold text-on-surface-variant">Target Frequency</label>
                   <input 
+                    id="adopt-frequency"
                     type="text" 
                     value={frequency} 
                     onChange={(e) => setFrequency(e.target.value)} 
@@ -656,8 +702,9 @@ export default function EcoActionsPage() {
 
                 <div className="grid grid-cols-2 gap-3">
                   <div className="flex flex-col gap-1">
-                    <label className="text-body-xs font-bold text-on-surface-variant">Start Date</label>
+                    <label htmlFor="adopt-start-date" className="text-body-xs font-bold text-on-surface-variant">Start Date</label>
                     <input 
+                      id="adopt-start-date"
                       type="date" 
                       value={startDate} 
                       onChange={(e) => setStartDate(e.target.value)} 
@@ -665,8 +712,9 @@ export default function EcoActionsPage() {
                     />
                   </div>
                   <div className="flex flex-col gap-1">
-                    <label className="text-body-xs font-bold text-on-surface-variant">End Date</label>
+                    <label htmlFor="adopt-end-date" className="text-body-xs font-bold text-on-surface-variant">End Date</label>
                     <input 
+                      id="adopt-end-date"
                       type="date" 
                       value={endDate} 
                       onChange={(e) => setEndDate(e.target.value)} 
@@ -676,8 +724,9 @@ export default function EcoActionsPage() {
                 </div>
 
                 <div className="flex flex-col gap-1">
-                  <label className="text-body-xs font-bold text-on-surface-variant">Custom Action Notes</label>
+                  <label htmlFor="adopt-notes" className="text-body-xs font-bold text-on-surface-variant">Custom Action Notes</label>
                   <textarea 
+                    id="adopt-notes"
                     value={notes} 
                     onChange={(e) => setNotes(e.target.value)} 
                     placeholder="Add reminders, guidelines, or custom notes..."
@@ -709,17 +758,25 @@ export default function EcoActionsPage() {
       {/* CREATE CUSTOM MISSION MODAL */}
       {showCustomModal && (
         <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/60 backdrop-blur-sm animate-fade-in p-4">
-          <div className="bg-surface-container border border-glass rounded-xl shadow-glow w-full max-w-md overflow-hidden relative text-left">
+          <div 
+            ref={customModalRef}
+            onKeyDown={handleCustomModalKeyDown}
+            role="dialog"
+            aria-modal="true"
+            aria-labelledby="customMissionTitle"
+            className="bg-surface-container border border-glass rounded-xl shadow-glow w-full max-w-md overflow-hidden relative text-left"
+          >
             <button 
               onClick={() => setShowCustomModal(false)}
               className="absolute top-4 right-4 text-on-surface-variant hover:text-on-surface"
+              aria-label="Close custom mission modal"
             >
               <X className="h-5 w-5" />
             </button>
             
             <div className="p-6 space-y-4">
               <div>
-                <h3 className="text-title-lg font-bold text-on-surface flex items-center gap-1.5">
+                <h3 id="customMissionTitle" className="text-title-lg font-bold text-on-surface flex items-center gap-1.5">
                   <Sparkles className="h-5 w-5 text-primary" />
                   Create Custom Mission
                 </h3>
@@ -728,8 +785,9 @@ export default function EcoActionsPage() {
 
               <div className="space-y-3 pt-1">
                 <div className="flex flex-col gap-1">
-                  <label className="text-body-xs font-bold text-on-surface-variant">Mission Title</label>
+                  <label htmlFor="custom-title" className="text-body-xs font-bold text-on-surface-variant">Mission Title</label>
                   <input 
+                    id="custom-title"
                     type="text" 
                     value={customTitle} 
                     onChange={(e) => setCustomTitle(e.target.value)} 
@@ -739,8 +797,9 @@ export default function EcoActionsPage() {
                 </div>
 
                 <div className="flex flex-col gap-1">
-                  <label className="text-body-xs font-bold text-on-surface-variant">Description</label>
+                  <label htmlFor="custom-desc" className="text-body-xs font-bold text-on-surface-variant">Description</label>
                   <input 
+                    id="custom-desc"
                     type="text" 
                     value={customDesc} 
                     onChange={(e) => setCustomDesc(e.target.value)} 
@@ -751,8 +810,9 @@ export default function EcoActionsPage() {
 
                 <div className="grid grid-cols-2 gap-3">
                   <div className="flex flex-col gap-1">
-                    <label className="text-body-xs font-bold text-on-surface-variant">Carbon Reduction (kg/yr)</label>
+                    <label htmlFor="custom-carbon" className="text-body-xs font-bold text-on-surface-variant">Carbon Reduction (kg/yr)</label>
                     <input 
+                      id="custom-carbon"
                       type="number" 
                       value={customCarbon} 
                       onChange={(e) => setCustomCarbon(Number(e.target.value))} 
@@ -760,8 +820,9 @@ export default function EcoActionsPage() {
                     />
                   </div>
                   <div className="flex flex-col gap-1">
-                    <label className="text-body-xs font-bold text-on-surface-variant">Money Saved (USD/yr)</label>
+                    <label htmlFor="custom-money" className="text-body-xs font-bold text-on-surface-variant">Money Saved (USD/yr)</label>
                     <input 
+                      id="custom-money"
                       type="number" 
                       value={customMoney} 
                       onChange={(e) => setCustomMoney(Number(e.target.value))} 
@@ -771,8 +832,9 @@ export default function EcoActionsPage() {
                 </div>
 
                 <div className="flex flex-col gap-1">
-                  <label className="text-body-xs font-bold text-on-surface-variant">Effort Level</label>
+                  <label htmlFor="custom-effort" className="text-body-xs font-bold text-on-surface-variant">Effort Level</label>
                   <select 
+                    id="custom-effort"
                     value={customEffort} 
                     onChange={(e) => setCustomEffort(e.target.value as "low" | "moderate" | "high" | "transformational")}
                     className="bg-surface-container-low border border-glass rounded px-3 py-2 text-body-sm text-on-surface focus:outline-none focus:border-primary"
@@ -787,8 +849,9 @@ export default function EcoActionsPage() {
                 <div className="border-t border-glass/40 my-2 pt-2" />
 
                 <div className="flex flex-col gap-1">
-                  <label className="text-body-xs font-bold text-on-surface-variant">Frequency & Timeline Configuration</label>
+                  <label htmlFor="custom-frequency" className="text-body-xs font-bold text-on-surface-variant">Frequency & Timeline Configuration</label>
                   <input 
+                    id="custom-frequency"
                     type="text" 
                     value={frequency} 
                     onChange={(e) => setFrequency(e.target.value)} 
@@ -799,8 +862,9 @@ export default function EcoActionsPage() {
 
                 <div className="grid grid-cols-2 gap-3">
                   <div className="flex flex-col gap-1">
-                    <label className="text-body-xs font-bold text-on-surface-variant">Start Date</label>
+                    <label htmlFor="custom-start-date" className="text-body-xs font-bold text-on-surface-variant">Start Date</label>
                     <input 
+                      id="custom-start-date"
                       type="date" 
                       value={startDate} 
                       onChange={(e) => setStartDate(e.target.value)} 
@@ -808,8 +872,9 @@ export default function EcoActionsPage() {
                     />
                   </div>
                   <div className="flex flex-col gap-1">
-                    <label className="text-body-xs font-bold text-on-surface-variant">End Date</label>
+                    <label htmlFor="custom-end-date" className="text-body-xs font-bold text-on-surface-variant">End Date</label>
                     <input 
+                      id="custom-end-date"
                       type="date" 
                       value={endDate} 
                       onChange={(e) => setEndDate(e.target.value)} 
@@ -841,10 +906,18 @@ export default function EcoActionsPage() {
       {/* ACTIVE COMMITMENT LIMIT OVERFLOW WARNING MODAL */}
       {showLimitModal && (
         <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/60 backdrop-blur-sm animate-fade-in p-4">
-          <div className="bg-surface-container border-2 border-error/30 rounded-xl shadow-glow w-full max-w-sm overflow-hidden relative text-left">
+          <div 
+            ref={limitModalRef}
+            onKeyDown={handleLimitModalKeyDown}
+            role="dialog"
+            aria-modal="true"
+            aria-labelledby="limitModalTitle"
+            className="bg-surface-container border-2 border-error/30 rounded-xl shadow-glow w-full max-w-sm overflow-hidden relative text-left"
+          >
             <button 
               onClick={() => setShowLimitModal(false)}
               className="absolute top-4 right-4 text-on-surface-variant hover:text-on-surface"
+              aria-label="Close warning modal"
             >
               <X className="h-5 w-5" />
             </button>
@@ -855,7 +928,7 @@ export default function EcoActionsPage() {
               </div>
 
               <div className="space-y-1">
-                <h3 className="text-title-md font-bold text-on-surface">Active Mission Limit Exceeded</h3>
+                <h3 id="limitModalTitle" className="text-title-md font-bold text-on-surface">Active Mission Limit Exceeded</h3>
                 <p className="text-body-xs text-on-surface-variant leading-relaxed">
                   You have reached the maximum of <strong>10 active missions</strong>. Complete or cancel an existing mission before adopting a new one.
                 </p>
@@ -872,5 +945,13 @@ export default function EcoActionsPage() {
         </div>
       )}
     </div>
+  );
+}
+
+export default function WrappedEcoActionsPage() {
+  return (
+    <ErrorBoundary fallbackName="Eco Actions Sandbox">
+      <EcoActionsPage />
+    </ErrorBoundary>
   );
 }

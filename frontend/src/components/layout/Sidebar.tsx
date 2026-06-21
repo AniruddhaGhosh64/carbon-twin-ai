@@ -99,6 +99,7 @@ export default function Sidebar({ isOpen, onClose }: SidebarProps) {
                 key={item.name}
                 href={item.href}
                 onClick={onClose}
+                aria-current={isActive ? "page" : undefined}
                 className={cn(
                   "group flex items-center gap-3.5 px-4 py-3 text-body-sm font-medium rounded-lg transition-all duration-200 border border-transparent",
                   isActive

@@ -1,11 +1,13 @@
 "use client";
 
-import { useState } from "react";
+import { useState, useEffect, useRef } from "react";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/Card";
 import { Slider } from "@/components/ui/Slider";
 import { cn } from "@/lib/utils";
-import { getApiUrl } from "@/lib/api";
-import { Cookie, Plus, Trash2, Sparkles, Loader2, Check, AlertTriangle, ArrowRight } from "lucide-react";
+import api from "@/lib/api/client";
+import logger from "@/lib/logger";
+import { Cookie, Plus, Trash2, Sparkles, Loader2 } from "lucide-react";
+import { FoodExtractResponse, ExtractedMealItem } from "@/types/carbon";
 
 export interface FoodItem {
   id: string;
@@ -46,6 +48,55 @@ export default function FoodTrackingModule({ meals, setMeals }: FoodTrackingModu
   const [isExtracting, setIsExtracting] = useState(false);
   const [showConfirmModal, setShowConfirmModal] = useState(false);
   const [extractedDraftItems, setExtractedDraftItems] = useState<(FoodItem & { checked: boolean; confidence?: number })[]>([]);
+
+  const confirmModalRef = useRef<HTMLDivElement | null>(null);
+  const analyzeBtnRef = useRef<HTMLButtonElement | null>(null);
+
+  // Escape key close handler
+  useEffect(() => {
+    const handleEscape = (e: KeyboardEvent) => {
+      if (e.key === "Escape" && showConfirmModal) {
+        setShowConfirmModal(false);
+        analyzeBtnRef.current?.focus();
+      }
+    };
+    window.addEventListener("keydown", handleEscape);
+    return () => window.removeEventListener("keydown", handleEscape);
+  }, [showConfirmModal]);
+
+  // Focus confirm modal when opened
+  useEffect(() => {
+    if (showConfirmModal && confirmModalRef.current) {
+      const focusable = confirmModalRef.current.querySelectorAll(
+        'button, input, select, [tabindex]:not([tabindex="-1"])'
+      );
+      if (focusable.length > 0) {
+        (focusable[0] as HTMLElement).focus();
+      }
+    }
+  }, [showConfirmModal]);
+
+  const handleConfirmModalKeyDown = (e: React.KeyboardEvent) => {
+    if (e.key === "Tab" && confirmModalRef.current) {
+      const focusable = confirmModalRef.current.querySelectorAll(
+        'button, input, select, [tabindex]:not([tabindex="-1"])'
+      );
+      if (focusable.length === 0) return;
+      const first = focusable[0] as HTMLElement;
+      const last = focusable[focusable.length - 1] as HTMLElement;
+      if (e.shiftKey) {
+        if (document.activeElement === first) {
+          last.focus();
+          e.preventDefault();
+        }
+      } else {
+        if (document.activeElement === last) {
+          first.focus();
+          e.preventDefault();
+        }
+      }
+    }
+  };
 
   // Manual Food Item Entry Form
   const [manualName, setManualName] = useState("");
@@ -123,21 +174,10 @@ export default function FoodTrackingModule({ meals, setMeals }: FoodTrackingModu
     setIsExtracting(true);
 
     try {
-      const response = await fetch(getApiUrl("/api/v1/footprint/food/extract"), {
-        method: "POST",
-        headers: {
-          "Content-Type": "application/json",
-          "X-User-Id": "default_user",
-        },
-        body: JSON.stringify({ text: promptText }),
-      });
-
-      if (!response.ok) throw new Error("API extraction failed");
-
-      const result = await response.json();
+      const result = await api.post<FoodExtractResponse>("/api/v1/footprint/food/extract", { text: promptText });
       if (result.success && result.data && result.data.items) {
-        const parsedItems = result.data.items.map((item: { name: string; category: FoodItem["category"]; confidence?: number }) => ({
-          id: Math.random().toString(36).substr(2, 9),
+        const parsedItems = result.data.items.map((item: ExtractedMealItem) => ({
+          id: Math.random().toString(36).substring(2, 11),
           name: item.name,
           portion_g: 100, // Portions default to 100g and are NOT estimated by Gemini
           category: item.category as FoodItem["category"],
@@ -148,7 +188,7 @@ export default function FoodTrackingModule({ meals, setMeals }: FoodTrackingModu
         setShowConfirmModal(true);
       }
     } catch (e) {
-      console.error(e);
+      logger.error("API extraction failed", e);
       alert("Failed to analyze meal. Please check your network or try again.");
     } finally {
       setIsExtracting(false);
@@ -223,12 +263,14 @@ export default function FoodTrackingModule({ meals, setMeals }: FoodTrackingModu
                 value={promptText}
                 onChange={(e) => setPromptText(e.target.value)}
                 placeholder="Describe your meal..."
+                aria-label="Describe your meal to parse and categorize automatically"
                 className="flex-1 bg-surface border border-glass rounded-xl p-3 text-xs text-on-surface outline-none focus:border-primary placeholder-on-surface-variant/50 font-medium"
                 onKeyDown={(e) => {
                   if (e.key === "Enter") handleAnalyzeMeal();
                 }}
               />
               <button
+                ref={analyzeBtnRef}
                 type="button"
                 onClick={handleAnalyzeMeal}
                 disabled={isExtracting || !promptText.trim()}
@@ -279,8 +321,9 @@ export default function FoodTrackingModule({ meals, setMeals }: FoodTrackingModu
               </span>
               <div className="space-y-4.5">
                 <div className="flex flex-col space-y-1.5">
-                  <label className="text-[10px] font-semibold text-on-surface-variant uppercase">Food Item Name</label>
+                  <label htmlFor="manualFoodName" className="text-[10px] font-semibold text-on-surface-variant uppercase">Food Item Name</label>
                   <input
+                    id="manualFoodName"
                     type="text"
                     value={manualName}
                     onChange={(e) => setManualName(e.target.value)}
@@ -290,8 +333,9 @@ export default function FoodTrackingModule({ meals, setMeals }: FoodTrackingModu
                 </div>
 
                 <div className="flex flex-col space-y-1.5">
-                  <label className="text-[10px] font-semibold text-on-surface-variant uppercase">Category</label>
+                  <label htmlFor="manualCategory" className="text-[10px] font-semibold text-on-surface-variant uppercase">Category</label>
                   <select
+                    id="manualCategory"
                     value={manualCategory}
                     onChange={(e) => setManualCategory(e.target.value as FoodItem["category"])}
                     className="bg-surface border border-glass rounded-xl p-2.5 text-xs text-on-surface outline-none focus:border-primary font-medium"
@@ -315,6 +359,7 @@ export default function FoodTrackingModule({ meals, setMeals }: FoodTrackingModu
                     step={10}
                     value={manualPortion}
                     onValueChange={(val) => setManualPortion(val)}
+                    aria-label="Portion Size"
                   />
                 </div>
 
@@ -383,14 +428,21 @@ export default function FoodTrackingModule({ meals, setMeals }: FoodTrackingModu
       {/* Confirmation Dialog Overlay Modal */}
       {showConfirmModal && (
         <div className="fixed inset-0 bg-background/80 backdrop-blur-sm z-[999] flex items-center justify-center p-4">
-          <Card className="border border-glass max-w-2xl w-full bg-glass-panel shadow-2xl overflow-hidden animate-scale-in">
+          <Card 
+            ref={confirmModalRef}
+            onKeyDown={handleConfirmModalKeyDown}
+            role="dialog"
+            aria-modal="true"
+            aria-labelledby="confirmExtractedTitle"
+            className="border border-glass max-w-2xl w-full bg-glass-panel shadow-2xl overflow-hidden animate-scale-in"
+          >
             <CardHeader className="p-6 border-b border-glass text-left">
               <div className="flex items-center gap-3">
                 <div className="h-9 w-9 bg-primary/10 rounded-lg border border-primary/20 flex items-center justify-center">
                   <Sparkles className="h-4.5 w-4.5 text-primary" />
                 </div>
                 <div>
-                  <CardTitle className="text-base font-bold">Confirm Extracted Foods</CardTitle>
+                  <CardTitle id="confirmExtractedTitle" className="text-base font-bold">Confirm Extracted Foods</CardTitle>
                   <CardDescription className="text-xs">Verify AI-detected items and specify portion sizes.</CardDescription>
                 </div>
               </div>
@@ -407,6 +459,7 @@ export default function FoodTrackingModule({ meals, setMeals }: FoodTrackingModu
                         type="checkbox"
                         checked={item.checked}
                         onChange={(e) => handleDraftItemChange(item.id, "checked", e.target.checked)}
+                        aria-label={`Select ${item.name}`}
                         className="mt-1 h-4 w-4 rounded border-glass text-primary focus:ring-primary bg-surface outline-none"
                       />
                       <div>
@@ -414,12 +467,14 @@ export default function FoodTrackingModule({ meals, setMeals }: FoodTrackingModu
                           type="text"
                           value={item.name}
                           onChange={(e) => handleDraftItemChange(item.id, "name", e.target.value)}
+                          aria-label="Food Item Name"
                           className="bg-transparent border-b border-transparent focus:border-primary text-xs font-bold text-on-surface w-44 outline-none focus:outline-none"
                         />
                         <div className="flex items-center gap-2 mt-1">
                           <select
                             value={item.category}
                             onChange={(e) => handleDraftItemChange(item.id, "category", e.target.value)}
+                            aria-label="Category"
                             className="bg-transparent text-[10px] text-on-surface-variant outline-none border-none p-0 cursor-pointer font-semibold capitalize"
                           >
                             {CATEGORIES.map((cat) => (
@@ -449,6 +504,7 @@ export default function FoodTrackingModule({ meals, setMeals }: FoodTrackingModu
                           step={10}
                           value={item.portion_g}
                           onValueChange={(val) => handleDraftItemChange(item.id, "portion_g", val)}
+                          aria-label="Portion Weight"
                         />
                       </div>
                     )}

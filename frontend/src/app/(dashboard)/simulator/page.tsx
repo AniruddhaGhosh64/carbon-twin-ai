@@ -1,8 +1,11 @@
 "use client";
 
-import { useState, useEffect } from "react";
+import { useState, useEffect, useMemo, useRef } from "react";
 import Link from "next/link";
-import { getApiUrl } from "@/lib/api";
+import api from "@/lib/api/client";
+import logger from "@/lib/logger";
+import ErrorBoundary from "@/components/layout/ErrorBoundary";
+import { SimulatorResponse, SavedScenario } from "@/types/carbon";
 import { 
   RotateCcw, 
   Save, 
@@ -24,16 +27,13 @@ import {
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/Card";
 import { Switch } from "@/components/ui/Switch";
 import { Slider } from "@/components/ui/Slider";
-import { 
-  AreaChart, 
-  Area, 
-  XAxis, 
-  YAxis, 
-  CartesianGrid, 
-  Tooltip, 
-  ResponsiveContainer 
-} from "recharts";
 import { cn } from "@/lib/utils";
+import dynamic from "next/dynamic";
+
+const SimulatorChart = dynamic(
+  () => import("@/components/charts/SimulatorChart"),
+  { ssr: false, loading: () => <div className="h-72 w-full flex items-center justify-center text-sm text-on-surface-variant">Loading timeline sandbox...</div> }
+);
 
 interface TimelinePoint {
   name: string;
@@ -41,39 +41,8 @@ interface TimelinePoint {
   projected: number;
 }
 
-interface SavedScenario {
-  id: string;
-  name: string;
-  saved_at: string;
-  reduction_percentage: number;
-  base_emissions_kg: number;
-  simulated_emissions_kg: number;
-  money_saved_usd: number;
-  money_spent_usd: number;
-  roi_percentage: number;
-  break_even_years: number;
-  trees_equivalent: number;
-  levers: {
-    use_metro: boolean;
-    reduce_meat: boolean;
-    carpool: boolean;
-    cycle_days: number;
-    reduce_electricity: number;
-    reduce_driving_percentage: number;
-    flight_reduction_count: number;
-    solar_adoption: boolean;
-    appliance_optimization: boolean;
-    reduce_beef_percentage: number;
-    diet_transition: string;
-    reduce_deliveries_percentage: number;
-    reduce_clothing_percentage: number;
-    reduce_electronics_percentage: number;
-    reduce_electricity_percentage: number;
-  };
-}
 
-export default function SimulatorPage() {
-  const [mounted, setMounted] = useState(false);
+function SimulatorPage() {
   
   // Interactive levers states
   const [useMetro, setUseMetro] = useState(false);
@@ -106,75 +75,86 @@ export default function SimulatorPage() {
   const [scenarios, setScenarios] = useState<SavedScenario[]>([]);
   const [showLimitModal, setShowLimitModal] = useState(false);
 
+  const limitModalRef = useRef<HTMLDivElement | null>(null);
+  const saveBtnRef = useRef<HTMLButtonElement | null>(null);
+
+  // Escape key close handler
+  useEffect(() => {
+    const handleEscape = (e: KeyboardEvent) => {
+      if (e.key === "Escape" && showLimitModal) {
+        setShowLimitModal(false);
+        saveBtnRef.current?.focus();
+      }
+    };
+    window.addEventListener("keydown", handleEscape);
+    return () => window.removeEventListener("keydown", handleEscape);
+  }, [showLimitModal]);
+
+  // Focus modal when opened
+  useEffect(() => {
+    if (showLimitModal && limitModalRef.current) {
+      const focusable = limitModalRef.current.querySelectorAll(
+        'button, [tabindex]:not([tabindex="-1"])'
+      );
+      if (focusable.length > 0) {
+        (focusable[0] as HTMLElement).focus();
+      }
+    }
+  }, [showLimitModal]);
+
+  const handleLimitModalKeyDown = (e: React.KeyboardEvent) => {
+    if (e.key === "Tab" && limitModalRef.current) {
+      const focusable = limitModalRef.current.querySelectorAll(
+        'button, [tabindex]:not([tabindex="-1"])'
+      );
+      if (focusable.length === 0) return;
+      const first = focusable[0] as HTMLElement;
+      const last = focusable[focusable.length - 1] as HTMLElement;
+      if (e.shiftKey) {
+        if (document.activeElement === first) {
+          last.focus();
+          e.preventDefault();
+        }
+      } else {
+        if (document.activeElement === last) {
+          first.focus();
+          e.preventDefault();
+        }
+      }
+    }
+  };
+
   // Backend response state
-  // eslint-disable-next-line @typescript-eslint/no-explicit-any
-  const [simResults, setSimResults] = useState<any>(null);
+  const [simResults, setSimResults] = useState<SimulatorResponse | null>(null);
   const [loading, setLoading] = useState(false);
 
   // Fetch saved scenarios
   const fetchScenarios = async () => {
     try {
-      const response = await fetch(getApiUrl("/api/v1/simulator/scenarios"), {
-        headers: {
-          "X-User-Id": "default_user",
-        }
-      });
-      if (response.ok) {
-        const data = await response.json();
-        setScenarios(data);
-      }
+      const data = await api.get<SavedScenario[]>("/api/v1/simulator/scenarios");
+      setScenarios(data);
     } catch (err) {
-      console.error("Failed to load scenarios:", err);
+      logger.error("Failed to load scenarios", err);
     }
   };
 
-  // Fetch simulation results from backend
-  const fetchSimulation = async () => {
-    setLoading(true);
-    try {
-      const response = await fetch(getApiUrl("/api/v1/simulator/calculate"), {
-        method: "POST",
-        headers: {
-          "Content-Type": "application/json",
-          "X-User-Id": "default_user",
-        },
-        body: JSON.stringify({
-          levers: {
-            use_metro: useMetro,
-            reduce_meat: reduceMeat,
-            carpool: carpool,
-            cycle_days: cycleDays,
-            reduce_electricity: reduceElectricity,
-            reduce_driving_percentage: reduceDrivingPercentage,
-            flight_reduction_count: flightReductionCount,
-            solar_adoption: solarAdoption,
-            appliance_optimization: applianceOptimization,
-            reduce_beef_percentage: reduceBeefPercentage,
-            diet_transition: dietTransition,
-            reduce_deliveries_percentage: reduceDeliveriesPercentage,
-            reduce_clothing_percentage: reduceClothingPercentage,
-            reduce_electronics_percentage: reduceElectronicsPercentage,
-            reduce_electricity_percentage: reduceElectricityPercentage
-          }
-        })
-      });
-
-      if (response.ok) {
-        const data = await response.json();
-        setSimResults(data);
-      }
-    } catch (err) {
-      console.error("Simulation request failed:", err);
-    } finally {
-      setLoading(false);
-    }
-  };
-
-  // Trigger calculation when levers change
-  useEffect(() => {
-    fetchSimulation();
-    // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [
+  const leversState = useMemo(() => ({
+    use_metro: useMetro,
+    reduce_meat: reduceMeat,
+    carpool: carpool,
+    cycle_days: cycleDays,
+    reduce_electricity: reduceElectricity,
+    reduce_driving_percentage: reduceDrivingPercentage,
+    flight_reduction_count: flightReductionCount,
+    solar_adoption: solarAdoption,
+    appliance_optimization: applianceOptimization,
+    reduce_beef_percentage: reduceBeefPercentage,
+    diet_transition: dietTransition,
+    reduce_deliveries_percentage: reduceDeliveriesPercentage,
+    reduce_clothing_percentage: reduceClothingPercentage,
+    reduce_electronics_percentage: reduceElectronicsPercentage,
+    reduce_electricity_percentage: reduceElectricityPercentage
+  }), [
     useMetro, reduceMeat, carpool, cycleDays, reduceElectricity,
     reduceDrivingPercentage, flightReductionCount, solarAdoption,
     applianceOptimization, reduceBeefPercentage, dietTransition,
@@ -182,8 +162,40 @@ export default function SimulatorPage() {
     reduceElectronicsPercentage, reduceElectricityPercentage
   ]);
 
+  const [debouncedLevers, setDebouncedLevers] = useState(leversState);
+
   useEffect(() => {
-    setMounted(true);
+    const handler = setTimeout(() => {
+      setDebouncedLevers(leversState);
+    }, 300);
+
+    return () => {
+      clearTimeout(handler);
+    };
+  }, [leversState]);
+
+  // Fetch simulation results from backend
+  const fetchSimulation = async () => {
+    setLoading(true);
+    try {
+      const data = await api.post<SimulatorResponse>("/api/v1/simulator/calculate", {
+        levers: debouncedLevers
+      });
+      setSimResults(data);
+    } catch (err) {
+      logger.error("Simulation request failed", err);
+    } finally {
+      setLoading(false);
+    }
+  };
+
+  // Trigger calculation when debounced levers change
+  useEffect(() => {
+    fetchSimulation();
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [debouncedLevers]);
+
+  useEffect(() => {
     fetchScenarios();
   }, []);
 
@@ -216,98 +228,9 @@ export default function SimulatorPage() {
     setSaveSuccess(false);
     try {
       const scenarioName = prompt("Enter a name for this scenario:", "My Carbon Plan") || "My Carbon Plan";
-      const response = await fetch(getApiUrl("/api/v1/simulator/scenario"), {
-        method: "POST",
-        headers: {
-          "Content-Type": "application/json",
-          "X-User-Id": "default_user",
-        },
-        body: JSON.stringify({
-          name: scenarioName,
-          levers: {
-            use_metro: useMetro,
-            reduce_meat: reduceMeat,
-            carpool: carpool,
-            cycle_days: cycleDays,
-            reduce_electricity: reduceElectricity,
-            reduce_driving_percentage: reduceDrivingPercentage,
-            flight_reduction_count: flightReductionCount,
-            solar_adoption: solarAdoption,
-            appliance_optimization: applianceOptimization,
-            reduce_beef_percentage: reduceBeefPercentage,
-            diet_transition: dietTransition,
-            reduce_deliveries_percentage: reduceDeliveriesPercentage,
-            reduce_clothing_percentage: reduceClothingPercentage,
-            reduce_electronics_percentage: reduceElectronicsPercentage,
-            reduce_electricity_percentage: reduceElectricityPercentage
-          }
-        })
-      });
-
-      if (response.ok) {
-        setSaveSuccess(true);
-        setTimeout(() => setSaveSuccess(false), 3000);
-        fetchScenarios();
-      } else {
-        const errorData = await response.json();
-        if (errorData.detail === "MAX_SCENARIOS_EXCEEDED") {
-          setShowLimitModal(true);
-        } else {
-          alert(errorData.detail || "Failed to save scenario");
-        }
-      }
-    } catch (err) {
-      console.error("Save scenario failed:", err);
-    } finally {
-      setSavingScenario(false);
-    }
-  };
-
-  const handleApplyToTwin = async () => {
-    if (!simResults) return;
-    setApplyingTwin(true);
-    setApplySuccess(false);
-    try {
-      const scenarioName = "Applied Simulator Strategy";
-      
-      // 1. POST Apply to Twin Snapshot
-      const response = await fetch(getApiUrl("/api/v1/carbontwin/apply_simulation"), {
-        method: "POST",
-        headers: {
-          "Content-Type": "application/json",
-          "X-User-Id": "default_user",
-        },
-        body: JSON.stringify({
-          scenario_name: scenarioName,
-          horizon: timeframe,
-          levers: {
-            use_metro: useMetro,
-            reduce_meat: reduceMeat,
-            carpool: carpool,
-            cycle_days: cycleDays,
-            reduce_electricity: reduceElectricity,
-            reduce_driving_percentage: reduceDrivingPercentage,
-            flight_reduction_count: flightReductionCount,
-            solar_adoption: solarAdoption,
-            appliance_optimization: applianceOptimization,
-            reduce_beef_percentage: reduceBeefPercentage,
-            diet_transition: dietTransition,
-            reduce_deliveries_percentage: reduceDeliveriesPercentage,
-            reduce_clothing_percentage: reduceClothingPercentage,
-            reduce_electronics_percentage: reduceElectronicsPercentage,
-            reduce_electricity_percentage: reduceElectricityPercentage
-          }
-        })
-      });
-
-      // 2. Commit Simulation Levers as committed Eco Actions
-      await fetch(getApiUrl("/api/v1/dashboard/commit_simulation"), {
-        method: "POST",
-        headers: {
-          "Content-Type": "application/json",
-          "X-User-Id": "default_user",
-        },
-        body: JSON.stringify({
+      await api.post("/api/v1/simulator/scenario", {
+        name: scenarioName,
+        levers: {
           use_metro: useMetro,
           reduce_meat: reduceMeat,
           carpool: carpool,
@@ -323,14 +246,77 @@ export default function SimulatorPage() {
           reduce_clothing_percentage: reduceClothingPercentage,
           reduce_electronics_percentage: reduceElectronicsPercentage,
           reduce_electricity_percentage: reduceElectricityPercentage
-        })
+        }
       });
 
-      if (response.ok) {
-        setApplySuccess(true);
+      setSaveSuccess(true);
+      setTimeout(() => setSaveSuccess(false), 3000);
+      fetchScenarios();
+    } catch (err: unknown) {
+      const errMsg = err instanceof Error ? err.message : "Failed to save scenario";
+      if (errMsg === "MAX_SCENARIOS_EXCEEDED") {
+        setShowLimitModal(true);
+      } else {
+        alert(errMsg);
       }
+      logger.error("Save scenario failed", err);
+    } finally {
+      setSavingScenario(false);
+    }
+  };
+
+  const handleApplyToTwin = async () => {
+    if (!simResults) return;
+    setApplyingTwin(true);
+    setApplySuccess(false);
+    try {
+      const scenarioName = "Applied Simulator Strategy";
+      
+      // 1. POST Apply to Twin Snapshot
+      await api.post("/api/v1/carbontwin/apply_simulation", {
+        scenario_name: scenarioName,
+        horizon: timeframe,
+        levers: {
+          use_metro: useMetro,
+          reduce_meat: reduceMeat,
+          carpool: carpool,
+          cycle_days: cycleDays,
+          reduce_electricity: reduceElectricity,
+          reduce_driving_percentage: reduceDrivingPercentage,
+          flight_reduction_count: flightReductionCount,
+          solar_adoption: solarAdoption,
+          appliance_optimization: applianceOptimization,
+          reduce_beef_percentage: reduceBeefPercentage,
+          diet_transition: dietTransition,
+          reduce_deliveries_percentage: reduceDeliveriesPercentage,
+          reduce_clothing_percentage: reduceClothingPercentage,
+          reduce_electronics_percentage: reduceElectronicsPercentage,
+          reduce_electricity_percentage: reduceElectricityPercentage
+        }
+      });
+
+      // 2. Commit Simulation Levers as committed Eco Actions
+      await api.post("/api/v1/dashboard/commit_simulation", {
+        use_metro: useMetro,
+        reduce_meat: reduceMeat,
+        carpool: carpool,
+        cycle_days: cycleDays,
+        reduce_electricity: reduceElectricity,
+        reduce_driving_percentage: reduceDrivingPercentage,
+        flight_reduction_count: flightReductionCount,
+        solar_adoption: solarAdoption,
+        appliance_optimization: applianceOptimization,
+        reduce_beef_percentage: reduceBeefPercentage,
+        diet_transition: dietTransition,
+        reduce_deliveries_percentage: reduceDeliveriesPercentage,
+        reduce_clothing_percentage: reduceClothingPercentage,
+        reduce_electronics_percentage: reduceElectronicsPercentage,
+        reduce_electricity_percentage: reduceElectricityPercentage
+      });
+
+      setApplySuccess(true);
     } catch (err) {
-      console.error("Apply simulation to Twin failed:", err);
+      logger.error("Apply simulation to Twin failed", err);
     } finally {
       setApplyingTwin(false);
     }
@@ -360,22 +346,23 @@ export default function SimulatorPage() {
   const handleDeleteScenario = async (id: string) => {
     if (!confirm("Are you sure you want to delete this scenario?")) return;
     try {
-      const response = await fetch(getApiUrl(`/api/v1/simulator/scenario/${id}`), {
-        method: "DELETE",
-        headers: {
-          "X-User-Id": "default_user",
-        }
-      });
-      if (response.ok) {
-        fetchScenarios();
-      }
+      await api.delete(`/api/v1/simulator/scenario/${id}`);
+      fetchScenarios();
     } catch (err) {
-      console.error("Delete scenario failed:", err);
+      logger.error("Delete scenario failed", err);
     }
   };
 
+  // Get scaling factor for cumulative numbers
+  const timeframeFactor = useMemo(() => {
+    if (timeframe === "6m") return 0.5;
+    if (timeframe === "1y") return 1;
+    if (timeframe === "5y") return 5;
+    return 10;
+  }, [timeframe]);
+
   // Prepare chart data based on selected timeframe
-  const getChartData = (): TimelinePoint[] => {
+  const chartData = useMemo((): TimelinePoint[] => {
     if (!simResults) return [];
 
     const baseVal = simResults.base_emissions_kg / 12; // monthly average
@@ -407,18 +394,7 @@ export default function SimulatorPage() {
         projected: Math.round(simResults.simulated_emissions_kg * (idx + 1))
       }));
     }
-  };
-
-  // Get scaling factor for cumulative numbers
-  const getHorizonFactor = () => {
-    if (timeframe === "6m") return 0.5;
-    if (timeframe === "1y") return 1;
-    if (timeframe === "5y") return 5;
-    return 10;
-  };
-
-  const timeframeFactor = getHorizonFactor();
-  const chartData = getChartData();
+  }, [simResults, timeframe]);
   const co2Saved = simResults ? Math.round((simResults.base_emissions_kg - simResults.simulated_emissions_kg) * timeframeFactor) : 0;
   const moneySaved = simResults ? Math.round(simResults.money_saved_usd * timeframeFactor) : 0;
   const moneySpent = simResults ? Math.round(simResults.money_spent_usd) : 0;
@@ -508,7 +484,8 @@ export default function SimulatorPage() {
             <RotateCcw className="h-4 w-4" />
             Reset Levers
           </button>
-          <button 
+           <button 
+            ref={saveBtnRef}
             onClick={handleSaveScenario}
             disabled={savingScenario || !simResults}
             className="flex items-center gap-2 px-4 py-2.5 rounded-lg bg-primary text-on-primary text-sm font-semibold hover:bg-primary/90 transition-all shadow-[inset_0_1px_0_rgba(255,255,255,0.2)] disabled:opacity-50"
@@ -834,7 +811,7 @@ export default function SimulatorPage() {
                     <span className="text-xs font-bold text-on-surface">Use Public Metro</span>
                     <span className="text-[10px] text-on-surface-variant">Switch daily commute to transit</span>
                   </div>
-                  <Switch checked={useMetro} onCheckedChange={setUseMetro} />
+                  <Switch checked={useMetro} onCheckedChange={setUseMetro} aria-label="Use Public Metro" />
                 </div>
 
                 <div className="flex items-center justify-between pt-2">
@@ -842,7 +819,7 @@ export default function SimulatorPage() {
                     <span className="text-xs font-bold text-on-surface">Carpool Sharing</span>
                     <span className="text-[10px] text-on-surface-variant">Carpool for non-transit driving</span>
                   </div>
-                  <Switch checked={carpool} onCheckedChange={setCarpool} />
+                  <Switch checked={carpool} onCheckedChange={setCarpool} aria-label="Carpool Sharing" />
                 </div>
 
                 <div className="space-y-1.5 pt-2">
@@ -855,6 +832,7 @@ export default function SimulatorPage() {
                     max={100}
                     value={reduceDrivingPercentage}
                     onValueChange={(val) => setReduceDrivingPercentage(val)}
+                    aria-label="Reduce Weekly Driving"
                   />
                 </div>
 
@@ -868,6 +846,7 @@ export default function SimulatorPage() {
                     max={7}
                     value={cycleDays}
                     onValueChange={(val) => setCycleDays(val)}
+                    aria-label="Cycling Commutes"
                   />
                 </div>
 
@@ -881,6 +860,7 @@ export default function SimulatorPage() {
                     max={10}
                     value={flightReductionCount}
                     onValueChange={(val) => setFlightReductionCount(val)}
+                    aria-label="Reduce Annual Flights"
                   />
                 </div>
               </div>
@@ -894,7 +874,7 @@ export default function SimulatorPage() {
                     <span className="text-xs font-bold text-on-surface">Solar Panels Setup</span>
                     <span className="text-[10px] text-on-surface-variant">Switch power supply to solar</span>
                   </div>
-                  <Switch checked={solarAdoption} onCheckedChange={setSolarAdoption} />
+                  <Switch checked={solarAdoption} onCheckedChange={setSolarAdoption} aria-label="Solar Panels Setup" />
                 </div>
 
                 <div className="flex items-center justify-between pt-2">
@@ -902,7 +882,7 @@ export default function SimulatorPage() {
                     <span className="text-xs font-bold text-on-surface">Smart Appliances</span>
                     <span className="text-[10px] text-on-surface-variant">Appliance efficiency settings</span>
                   </div>
-                  <Switch checked={applianceOptimization} onCheckedChange={setApplianceOptimization} />
+                  <Switch checked={applianceOptimization} onCheckedChange={setApplianceOptimization} aria-label="Smart Appliances" />
                 </div>
 
                 <div className="space-y-1.5 pt-2">
@@ -915,6 +895,7 @@ export default function SimulatorPage() {
                     max={100}
                     value={reduceElectricityPercentage}
                     onValueChange={(val) => setReduceElectricityPercentage(val)}
+                    aria-label="Reduce Electricity Grid Draw"
                   />
                 </div>
               </div>
@@ -933,15 +914,18 @@ export default function SimulatorPage() {
                     max={100}
                     value={reduceBeefPercentage}
                     onValueChange={(val) => setReduceBeefPercentage(val)}
+                    aria-label="Lower Beef Intake"
                   />
                 </div>
 
                 <div className="space-y-1.5 pt-2">
-                  <span className="text-xs font-bold text-on-surface block">Diet Transition Scheme</span>
-                  <div className="grid grid-cols-4 gap-1 p-1 bg-surface-container rounded-lg border border-glass">
+                  <span id="dietSchemeLabel" className="text-xs font-bold text-on-surface block">Diet Transition Scheme</span>
+                  <div role="tablist" aria-labelledby="dietSchemeLabel" className="grid grid-cols-4 gap-1 p-1 bg-surface-container rounded-lg border border-glass">
                     {["none", "balanced", "vegetarian", "vegan"].map((d) => (
                       <button
                         key={d}
+                        role="tab"
+                        aria-selected={dietTransition === d}
                         onClick={() => setDietTransition(d)}
                         className={cn(
                           "py-1 rounded text-[9px] font-bold uppercase transition-all",
@@ -971,6 +955,7 @@ export default function SimulatorPage() {
                     max={100}
                     value={reduceDeliveriesPercentage}
                     onValueChange={(val) => setReduceDeliveriesPercentage(val)}
+                    aria-label="Consolidate Deliveries"
                   />
                 </div>
 
@@ -984,6 +969,7 @@ export default function SimulatorPage() {
                     max={100}
                     value={reduceClothingPercentage}
                     onValueChange={(val) => setReduceClothingPercentage(val)}
+                    aria-label="Reduce Clothing Purchases"
                   />
                 </div>
 
@@ -997,6 +983,7 @@ export default function SimulatorPage() {
                     max={100}
                     value={reduceElectronicsPercentage}
                     onValueChange={(val) => setReduceElectronicsPercentage(val)}
+                    aria-label="Reduce Electronics Purchases"
                   />
                 </div>
               </div>
@@ -1058,69 +1045,9 @@ export default function SimulatorPage() {
               </div>
             </CardHeader>
             <CardContent className="pt-6">
-              {mounted && simResults ? (
+              {simResults ? (
                 <div className={cn("h-72 w-full transition-opacity duration-300", loading && "opacity-50")}>
-                  <ResponsiveContainer width="100%" height="100%">
-                    <AreaChart
-                      data={chartData}
-                      margin={{ top: 10, right: 10, left: -20, bottom: 0 }}
-                    >
-                      <defs>
-                        <linearGradient id="colorProjected" x1="0" y1="0" x2="0" y2="1">
-                          <stop offset="5%" stopColor="#95d4b3" stopOpacity={0.3} />
-                          <stop offset="95%" stopColor="#95d4b3" stopOpacity={0.0} />
-                        </linearGradient>
-                      </defs>
-                      <CartesianGrid 
-                        stroke="#1B4332" 
-                        strokeOpacity={0.5} 
-                        strokeWidth={0.5} 
-                        vertical={false} 
-                      />
-                      <XAxis 
-                        dataKey="name" 
-                        stroke="#8a938c" 
-                        fontSize={10} 
-                        tickLine={false} 
-                        axisLine={false} 
-                      />
-                      <YAxis 
-                        stroke="#8a938c" 
-                        fontSize={10} 
-                        tickLine={false} 
-                        axisLine={false} 
-                      />
-                      <Tooltip
-                        contentStyle={{
-                          backgroundColor: "#10231c",
-                          border: "1px solid rgba(216, 226, 220, 0.1)",
-                          borderRadius: "8px",
-                          fontSize: "12px",
-                          color: "#d1e8dc",
-                        }}
-                      />
-                      <Area
-                        type="monotone"
-                        dataKey="baseline"
-                        stroke="#8a938c"
-                        strokeWidth={1}
-                        strokeDasharray="4 4"
-                        fill="none"
-                        name="Baseline Trajectory"
-                      />
-                      <Area
-                        type="monotone"
-                        dataKey="projected"
-                        stroke="#95d4b3"
-                        strokeWidth={2.5}
-                        fillOpacity={1}
-                        fill="url(#colorProjected)"
-                        name="Projected Trajectory"
-                        dot={{ r: 4, fill: "#95d4b3", strokeWidth: 0 }}
-                        activeDot={{ r: 6, fill: "#95d4b3" }}
-                      />
-                    </AreaChart>
-                  </ResponsiveContainer>
+                  <SimulatorChart data={chartData} />
                 </div>
               ) : (
                 <div className="h-72 w-full flex items-center justify-center text-sm text-on-surface-variant">
@@ -1201,10 +1128,18 @@ export default function SimulatorPage() {
       {/* Overflow Scenario Limit Modal */}
       {showLimitModal && (
         <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/60 backdrop-blur-sm animate-fade-in p-4">
-          <div className="relative border border-glass bg-[#031d13] p-6 rounded-2xl max-w-md w-full text-center space-y-6 shadow-glow">
+          <div 
+            ref={limitModalRef}
+            onKeyDown={handleLimitModalKeyDown}
+            role="dialog"
+            aria-modal="true"
+            aria-labelledby="maxScenariosTitle"
+            className="relative border border-glass bg-[#031d13] p-6 rounded-2xl max-w-md w-full text-center space-y-6 shadow-glow"
+          >
             <button 
               onClick={() => setShowLimitModal(false)}
               className="absolute top-4 right-4 text-on-surface-variant hover:text-on-surface transition-all"
+              aria-label="Close warning"
             >
               <X className="h-5 w-5" />
             </button>
@@ -1214,7 +1149,7 @@ export default function SimulatorPage() {
             </div>
 
             <div className="space-y-2">
-              <h3 className="text-xl font-bold text-on-surface">Maximum Scenarios Reached</h3>
+              <h3 id="maxScenariosTitle" className="text-xl font-bold text-on-surface">Maximum Scenarios Reached</h3>
               <p className="text-sm text-on-surface-variant leading-relaxed">
                 You have reached the maximum number of saved scenarios. Delete an existing scenario before creating a new one.
               </p>
@@ -1232,5 +1167,13 @@ export default function SimulatorPage() {
         </div>
       )}
     </div>
+  );
+}
+
+export default function WrappedSimulatorPage() {
+  return (
+    <ErrorBoundary fallbackName="Simulator Sandbox">
+      <SimulatorPage />
+    </ErrorBoundary>
   );
 }
