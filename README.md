@@ -279,11 +279,9 @@ npm run dev
 Create a `.env` file in the `backend/` directory:
 
 ```env
-GEMINI_API_KEY=your_gemini_api_key
 GEMINI_API_KEY_1=optional_backup_key_1
 GEMINI_API_KEY_2=optional_backup_key_2
 FIREBASE_PROJECT_ID=your_firebase_project_id
-FIREBASE_CREDENTIALS_PATH=path/to/firebase-credentials.json
 
 # Security Configuration
 JWT_SECRET=your_jwt_signing_secret (Mandatory - API will fail startup if missing)
