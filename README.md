@@ -1,12 +1,19 @@
 # CarbonTwin AI 🌿
 
-CarbonTwin AI is a next-generation, AI-powered climate intelligence suite. It creates an interactive, explainable **Digital Carbon Twin** of a user's household carbon footprint, allowing them to track emissions, run real-time multi-year lifestyle simulations, and consult an AI Sustainability Coach powered by Google Gemini.
+![CarbonTwin AI Banner](https://raw.githubusercontent.com/AniruddhaGhosh64/carbon-twin-ai/main/images/Dashboard.png)
+
+> **CarbonTwin AI is a next-generation, AI-powered climate intelligence suite.** It creates an interactive, explainable **Digital Carbon Twin** of a user's household carbon footprint, allowing them to track emissions, run real-time multi-year lifestyle simulations, and consult an AI Sustainability Coach powered by Google Gemini.
+
+## 🚀 Live Demo
+
+- **Frontend Application:** [https://carbon-twin-frontend-92195738880.asia-south1.run.app](https://carbon-twin-frontend-92195738880.asia-south1.run.app)
+- **Backend API:** [https://carbon-twin-backend-92195738880.asia-south1.run.app/health](https://carbon-twin-backend-92195738880.asia-south1.run.app/health)
 
 ---
 
-## 📌 Overview
+## 📌 Project Overview
 
-CarbonTwin AI bridges the gap between passive carbon calculators and active lifestyle change. By compiling raw transportation, utility, diet, and consumption metrics into a reactive twin profile, it provides users with a clear roadmap to reduce emissions, save money, and offset carbon impact.
+CarbonTwin AI bridges the gap between passive carbon calculators and active lifestyle change. By compiling raw transportation, utility, diet, and consumption metrics into a reactive twin profile, it provides users with a clear roadmap to reduce emissions, save money, and offset carbon impact. It goes beyond simple metrics, giving you an interactive "twin" that reflects the environmental impact of your daily choices.
 
 ---
 
@@ -85,48 +92,17 @@ graph TD
 
 ---
 
-## 🧬 Digital Carbon Twin Logic
-
-### 1. Data Collection
-Users submit records via four key modules:
-- **Transportation:** Ground distances (km or miles), vehicle fuels (gasoline, diesel, hybrid, electric), and flight airport routes.
-- **Home Energy:** Monthly electricity utility bills, appliance power ratings/usage, and solar panels.
-- **Food:** Detailed meal diaries specifying meat types, dairy, and vegetables.
-- **Shopping:** Monthly clothing, electronics purchases, package courier delivery counts, and vehicle purchases.
-
-### 2. Carbon Scoring
-Normalizes total footprint tons against baseline bounds:
-- Footprints $\le 2.0$ tons receive a score of `100`.
-- Footprints $\ge 20.0$ tons receive a score of `0`.
-- Intermediate values scale linearly: $\text{Score} = 100 - \frac{\text{Tons} - 2}{18} \times 100$.
-
-### 3. User Profiling
-A deterministic profiling engine assigns users into archetypes:
-- **Frequent Flyer:** $\ge 3$ flights or $> 2,000$ kg CO₂e in aviation.
-- **High Consumption Shopper:** Shopping emissions $> 1,500$ kg CO₂e or $> 6$ deliveries/week.
-- **Urban Transit Optimizer:** public transit/walking $\ge 60\%$ of ground commute, or owns an electric vehicle.
-- **Energy Efficient Household:** Energy emissions $< 500$ kg CO₂e or Medium/Large solar setup.
-- **Balanced Sustainable User:** Fallback for moderate impact.
-
-### 4. Recommendation Engine
-Sorts eco-actions by feasibility and category. Calculates impact based on user-submitted data.
-
-### 5. Scenario Simulation
-Calculates emissions adjustments and calculates financial metrics (payback period, ROI) when levers are toggled.
-
----
-
-## 💻 Tech Stack
+## 💻 Technology Stack
 
 ### Frontend
 - Next.js (React, App Router)
 - TypeScript
 - Tailwind CSS
-- NextAuth.js
-- Recharts (visualizations)
+- NextAuth.js (Auth.js v5)
+- Recharts (Visualizations)
 
 ### Backend
-- FastAPI (Python 3.14)
+- FastAPI (Python)
 - Pydantic v2
 - Pytest
 - Uvicorn
@@ -145,114 +121,85 @@ Calculates emissions adjustments and calculates financial metrics (payback perio
 
 ---
 
-## 📂 Folder Structure
+## 🤖 AI Components
 
-```
-project-root/
-├── backend/                  # FastAPI Python Backend
-│   ├── app/
-│   │   ├── api/              # API Route Handlers
-│   │   ├── core/             # Configuration & Rate Limiting
-│   │   ├── repositories/     # Firestore Database Operations
-│   │   ├── schemas/          # Pydantic Schemas & Validations
-│   │   └── services/         # Calculation & Twin Projections
-│   ├── tests/                # Pytest Suite (48 Unit Tests)
-│   ├── pyproject.toml        # Pyrefly & Pyright Config
-│   ├── requirements.txt      # Python Package Dependencies
-│   └── uvicorn_server.py     # Main Runner
-├── frontend/                 # Next.js React Frontend
-│   ├── public/               # Asset Files
-│   ├── src/
-│   │   ├── app/              # Dashboard, Twin & Footprint pages
-│   │   ├── components/       # Layout, Footprint & UI elements
-│   │   ├── context/          # CarbonContext.tsx State Provider
-│   │   ├── data/             # Air airports & Consumption presets
-│   │   └── lib/              # Utility helpers
-│   ├── package.json          # Node Modules
-│   └── tsconfig.json         # TypeScript Compiler Options
-├── README.md                 # Project Documentation (This File)
-└── .gitignore                # Root Ignored Files
-```
+### Context-Retrieval Coach
+CarbonTwin AI integrates Google Gemini to provide a floating, always-available AI Sustainability Coach. The coach is context-aware: it reads a user's exact footprint assessment, recent simulation changes, and twin archetype to deliver extremely personalized advice.
+
+### AI Insights Generator
+Leveraging the latest Gemini models, the insights generator evaluates user strengths, weaknesses, risks, and opportunities on the fly, translating raw carbon emissions into a cohesive narrative.
 
 ---
 
-## 🔌 API Endpoints
+## 📊 Carbon Calculation System
 
-### 🏥 Health Check (`/health`)
-* `GET /health`: Returns service health status and name for Cloud Run health probing.
+### Data Collection
+Users submit records via four key modules:
+- **Transportation:** Ground distances (km or miles), vehicle fuels (gasoline, diesel, hybrid, electric), and flight airport routes.
+- **Home Energy:** Monthly electricity utility bills, appliance power ratings/usage, and solar panels.
+- **Food:** Detailed meal diaries specifying meat types, dairy, and vegetables.
+- **Shopping:** Monthly clothing, electronics purchases, package courier delivery counts, and vehicle purchases.
 
-### 🔐 Authentication (`/api/v1/auth`)
-* `POST /register`: Registers a new user.
-* `POST /login`: authenticates local credentials.
-* `POST /google-login`: Validates and links federated Google accounts.
-
-### 📊 Carbon Footprints (`/api/v1/footprint`)
-* `POST /calculate`: Validates data and returns real-time calculations.
-* `POST /save`: Saves carbon assessment data.
-* `GET /latest`: Fetches the latest assessment score.
-* `GET /assessment/latest`: Fetches raw latest assessment answers.
-
-### 🧬 Carbon Twin Engine (`/api/v1/carbontwin`)
-* `GET /latest`: Returns current, future, and potential states.
-* `POST /generate`: Rebuilds twin profiles and accepts custom adopted rule IDs.
-* `POST /chat`: AI Assistant chat completion endpoint with history.
-
-### 📈 Recommendations & Commitments (`/api/v1/dashboard`)
-* `POST /generate`: Analyzes categories and returns ranked recommendations.
-* `GET /commitments`: Retrieves a list of active commitments.
-* `POST /commit`: Toggles a specific recommendation action.
-* `POST /commit_simulation`: Saves all current simulator lever presets.
-
-### 🎮 Simulator Engine (`/api/v1/simulator`)
-* `POST /project`: Accepts custom levers and calculates simulated emissions.
-* `GET /scenarios`: Lists all custom saved scenarios.
-* `POST /scenarios`: Saves a custom scenario preset.
+### Carbon Scoring
+Normalizes total footprint tons against baseline bounds:
+- Footprints $\le 2.0$ tons receive a score of `100`.
+- Footprints $\ge 20.0$ tons receive a score of `0`.
+- Intermediate values scale linearly: $\text{Score} = 100 - \frac{\text{Tons} - 2}{18} \times 100$.
 
 ---
 
-## 🔒 Security
+## 🧬 Carbon Twin Digital Twin Engine
 
-* **Environment Variables:** All credentials (API keys, Firestore details) are isolated inside backend-only `.env` files.
-* **Secret Management:** Google API Keys are rotated on the backend. No secret credentials are exposed to the client application.
-* **Input Validation:** Pydantic schemas enforce type-safety. Inputs are sanitized against XSS using character escapes.
-* **API Protection:** An custom X-User-Id header isolates assessments and endpoints.
-* **Authentication:** NextAuth validates credentials, keeping session JSON Web Tokens secure.
-* **Rate Limiting:** IP and User bucket rate limiters prevent LLM billing exhaustion (e.g. 10 messages/min).
+The Digital Carbon Twin acts as a behavioral replica, updating in real-time as users log new data. 
 
----
-
-## ♿ Accessibility
-
-* **ARIA Labels:** Interactive elements use `aria-label`, `aria-pressed`, `aria-checked`, and `aria-expanded` attributes.
-* **Keyboard Navigation:** Inputs, toggles, buttons, and range sliders support focus rings (`focus-visible:ring-2`).
-* **Color Contrast:** Layout follows AA compliance using dark-mode tailored themes.
-* **Screen Reader Support:** Dialog panels are tagged with `role="dialog"` and `aria-modal="false"`.
+**User Profiling Engine:**
+A deterministic profiling engine assigns users into archetypes based on behavior patterns:
+- **Frequent Flyer:** $\ge 3$ flights or $> 2,000$ kg CO₂e in aviation.
+- **High Consumption Shopper:** Shopping emissions $> 1,500$ kg CO₂e or $> 6$ deliveries/week.
+- **Urban Transit Optimizer:** public transit/walking $\ge 60\%$ of ground commute, or owns an electric vehicle.
+- **Energy Efficient Household:** Energy emissions $< 500$ kg CO₂e or Medium/Large solar setup.
+- **Balanced Sustainable User:** Fallback for moderate impact.
 
 ---
 
-## 🧪 Testing
+## 🎮 Impact Simulator
 
-### Running Tests
-The backend contains 48 unit and integration tests.
-
-```bash
-# Navigate to backend
-cd backend
-
-# Activate virtual environment
-.\venv\Scripts\activate
-
-# Run Pytest suite
-pytest -v
-```
+The Scenario Simulator allows users to manipulate multi-lever variables in a sandbox environment:
+- Toggle solar panels, diet transitions, flights, electric vehicles, and public transit.
+- Calculates emissions adjustments.
+- Projects financial metrics (payback period, ROI) when levers are toggled.
+- Displays equivalent metrics such as "trees planted" or "cars off the road."
 
 ---
 
-## 🚀 Installation
+## ✨ Personalized Recommendations
+
+The Recommendation Engine sorts eco-actions by feasibility and category. It calculates potential impact based on user-submitted data, ranking actions dynamically so that users focus on the easiest and most impactful changes first. Active commitments are stored and applied to future projection states.
+
+---
+
+## 🔐 Authentication System
+
+- **Secure Flow:** Features full credential login and Google OAuth federation using Auth.js.
+- **API Protection:** Custom Next.js API proxy routes and header-based isolation (`X-User-Id`) protect REST endpoints.
+- **Environment Isolation:** Secrets and API keys remain safely on the backend, rotating if needed.
+- **Session Integrity:** Uses JWTs for session management. 
+
+---
+
+## ☁️ Deployment Architecture
+
+Both the backend and frontend are fully containerized for production deployment on Google Cloud Run.
+- **Backend:** A lightweight FastAPI service deployed via Google Artifact Registry.
+- **Frontend:** A Next.js standalone multi-stage build mapped with API proxy configurations to seamlessly route requests to the backend under a unified domain setup or strict CORS structure.
+
+---
+
+## 🛠️ Installation
 
 ### 1. Clone Repository
 ```bash
-git clone https://github.com/your-username/carbon-twin-ai.git
+git clone https://github.com/AniruddhaGhosh64/carbon-twin-ai.git
 cd carbon-twin-ai
 ```
 
@@ -260,118 +207,106 @@ cd carbon-twin-ai
 ```bash
 cd backend
 python -m venv venv
+# On Windows
 .\venv\Scripts\activate
+# On Linux/macOS
+source venv/bin/activate
+
 pip install -r requirements.txt
-uvicorn app.main:app --reload
 ```
 
 ### 3. Frontend Setup
 ```bash
 cd ../frontend
 npm install
-npm run dev
 ```
 
 ---
 
-## 📄 Environment Variables
+## 💻 Local Development
 
-Create a `.env` file in the `backend/` directory:
+1. **Environment Variables:**
+   - Create `backend/.env` containing your database keys, `JWT_SECRET`, and Gemini API keys.
+   - Create `frontend/.env.local` containing `NEXTAUTH_SECRET`, Google OAuth IDs, and `NEXT_PUBLIC_API_URL=http://localhost:8000`.
 
-```env
-GEMINI_API_KEY_1=optional_backup_key_1
-GEMINI_API_KEY_2=optional_backup_key_2
-FIREBASE_PROJECT_ID=your_firebase_project_id
+2. **Run Backend:**
+   ```bash
+   cd backend
+   uvicorn app.main:app --reload
+   ```
 
-# Security Configuration
-JWT_SECRET=your_jwt_signing_secret (Mandatory - API will fail startup if missing)
-FRONTEND_URL=http://localhost:3000 (Defaults to localhost, specify production URL for CORS restriction)
-```
-
-Create a `.env.local` file in the `frontend/` directory:
-
-```env
-NEXTAUTH_SECRET=your_nextauth_signing_secret
-NEXTAUTH_URL=http://localhost:3000
-NEXT_PUBLIC_API_URL=http://127.0.0.1:8000 (Centralized API base configuration)
-```
+3. **Run Frontend:**
+   ```bash
+   cd frontend
+   npm run dev
+   ```
 
 ---
 
-## ☁️ Deployment
-
-### Docker Configuration
-Both the backend and frontend are fully containerized for production deployment.
-
-- **Backend:** `backend/Dockerfile` builds a lightweight FastAPI service using a non-root user.
-- **Frontend:** `frontend/Dockerfile` utilizes a Next.js multi-stage build that packages the standalone output for an optimized footprint.
+## 🚀 Production Deployment
 
 ### Google Cloud Run Deployment
 
 **Deploy the Backend:**
 ```bash
 cd backend
-gcloud builds submit --tag gcr.io/your-project-id/carbontwin-backend
+gcloud builds submit --tag gcr.io/YOUR_PROJECT_ID/carbontwin-backend
 gcloud run deploy carbontwin-backend \
-    --image gcr.io/your-project-id/carbontwin-backend \
+    --image gcr.io/YOUR_PROJECT_ID/carbontwin-backend \
     --platform managed \
     --allow-unauthenticated \
-    --set-env-vars="GEMINI_API_KEY=your_key,FIREBASE_PROJECT_ID=your_id"
+    --set-env-vars="GEMINI_API_KEY_1=your_key,FIREBASE_PROJECT_ID=your_id,JWT_SECRET=your_secret,FRONTEND_URL=https://your-frontend.run.app"
 ```
 
 **Deploy the Frontend:**
 ```bash
 cd frontend
-gcloud builds submit --tag gcr.io/your-project-id/carbontwin-frontend
+gcloud builds submit --tag gcr.io/YOUR_PROJECT_ID/carbontwin-frontend
 gcloud run deploy carbontwin-frontend \
-    --image gcr.io/your-project-id/carbontwin-frontend \
+    --image gcr.io/YOUR_PROJECT_ID/carbontwin-frontend \
     --platform managed \
     --allow-unauthenticated \
-    --set-env-vars="NEXT_PUBLIC_API_URL=https://your-backend-url.run.app"
+    --set-env-vars="NEXT_PUBLIC_API_URL=https://your-backend.run.app,AUTH_SECRET=your_secret,AUTH_TRUST_HOST=true"
 ```
-
-Live Demo:
-[TODO: Add deployed URL]
-
----
-
-## ⚡ Performance Optimizations
-
-- **Parallel Fetches:** Frontend Context API triggers asynchronous parallel requests (`Promise.allSettled`) to retrieve twin profiles, calculations, and recommendations concurrently.
-- **Reloader Process:** Backend uses WatchFiles in development, automatically picking up changed schemas and API routers.
-- **Memoized Calculations:** Heavy carbon footprint algorithms run client-side where possible to reduce server load.
-
----
-
-## 🗺️ Future Roadmap
-
-- **Advanced Carbon Twin Intelligence:** Integrating machine learning predictions based on historical usage data.
-- **Predictive Emissions Forecasting:** Integrating local weather data to forecast winter heating and summer cooling emissions.
-- **Personalized Roadmaps:** Dynamic timelines suggesting when to purchase solar panels or replace old appliances.
-- **PDF Sustainability Reports:** Generating downloadable climate compliance summaries.
-- **Enhanced AI Recommendations:** Direct integrations with green retailers.
 
 ---
 
 ## 📸 Screenshots
 
-*Baseline Dashboard Layout*
-![Dashboard Screenshot](https://raw.githubusercontent.com/your-username/carbon-twin-ai/main/screenshots/dashboard.png)
+Here is a closer look at the CarbonTwin AI interface:
 
-*Digital Twin Evolution Sandbox*
-![Carbon Twin Evolution](https://raw.githubusercontent.com/your-username/carbon-twin-ai/main/screenshots/twin.png)
+### Dashboard
+![Dashboard](https://raw.githubusercontent.com/AniruddhaGhosh64/carbon-twin-ai/main/images/Dashboard.png)
 
-*Interactive Scenario Projection*
-![Impact Simulator Sandbox](https://raw.githubusercontent.com/your-username/carbon-twin-ai/main/screenshots/simulator.png)
+### My Footprint
+![My Footprint](https://raw.githubusercontent.com/AniruddhaGhosh64/carbon-twin-ai/main/images/My%20Footprint.png)
+
+### Carbon Twin
+![Carbon Twin](https://raw.githubusercontent.com/AniruddhaGhosh64/carbon-twin-ai/main/images/Carbon%20Twin.png)
+
+### Impact Simulator
+![Impact Simulator](https://raw.githubusercontent.com/AniruddhaGhosh64/carbon-twin-ai/main/images/Impact%20Simulator.png)
+
+### Eco Actions
+![Eco Actions](https://raw.githubusercontent.com/AniruddhaGhosh64/carbon-twin-ai/main/images/Eco%20Actions.png)
+
+### Progress
+![Progress](https://raw.githubusercontent.com/AniruddhaGhosh64/carbon-twin-ai/main/images/Progress.png)
 
 ---
 
-## 🤝 Contributing
+## 🗺️ Future Scope
+
+- **Advanced Carbon Twin Intelligence:** Integrating machine learning predictions based on historical usage data.
+- **Predictive Emissions Forecasting:** Integrating local weather data to forecast winter heating and summer cooling emissions.
+- **Personalized Roadmaps:** Dynamic timelines suggesting when to purchase solar panels or replace old appliances.
+- **PDF Sustainability Reports:** Generating downloadable climate compliance summaries.
+- **Enhanced AI Recommendations:** Direct integrations with green retailers and smart home ecosystems.
+
+---
+
+## 🤝 Contributing & License
 
 Contributions are welcome! Please submit a pull request or open an issue to suggest enhancements.
-
----
-
-## 📄 License
 
 This project is licensed under the MIT License - see the LICENSE file for details.

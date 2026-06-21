@@ -13,10 +13,10 @@ export async function request<T>(path: string, options: RequestOptions = {}): Pr
   const { timeout = 8000, retries = 2, userId, ...rest } = options;
 
   // Resolve active API Base URL. On client-side (browser), use relative URLs so requests are proxied via Next.js rewrites.
-  // On server-side, use the direct API URL.
+  // On server-side, use the direct API URL (sanitized of trailing slashes to avoid double-slash routing issues in FastAPI).
   const API_BASE_URL = typeof window !== "undefined"
     ? ""
-    : (process.env.NEXT_PUBLIC_API_URL || "http://127.0.0.1:8000");
+    : (process.env.NEXT_PUBLIC_API_URL || "http://127.0.0.1:8000").replace(/\/+$/, "");
   const cleanPath = path.startsWith("/") ? path : `/${path}`;
   const url = `${API_BASE_URL}${cleanPath}`;
 
